@@ -33,11 +33,7 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <!-- Harvest the Languages satellite assemblies produced by FileConverter.csproj.
-         FileConverter uses AnyCPU output layout (bin\Release\), which does not match
-         the Installer's own $(OutputPath) (bin\x64\Release\). Reference the correct
-         FileConverter output folder explicitly. -->
-    <HarvestDirectory Include="..\Application\FileConverter\bin\$(Configuration)\Languages" Condition="Exists('..\Application\FileConverter\bin\$(Configuration)\Languages')">
+    <HarvestDirectory Include="..\Application\FileConverter\$(OutputPath)Languages">
       <ComponentGroupName>Languages</ComponentGroupName>
       <DirectoryRefId>INSTALLFOLDER</DirectoryRefId>
       <PreprocessorVariable>var.FileConverter.TargetDir</PreprocessorVariable>
