@@ -1,12 +1,21 @@
 ﻿<!-- Upgrade documentation: http://wixtoolset.org/documentation/manual/v3/howtos/updates/major_upgrade.html -->
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
-    <Package Name="File Converter" Language="1033" Version="2.2.0" Manufacturer="Adrien Allard" UpgradeCode="e3ca717b-a897-418a-bbef-5c7e35c76e4b" InstallerVersion="500">
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+
+    <Package Name="File Converter" Language="1033" Version="2.2.0" Manufacturer="Adrien Allard"
+             UpgradeCode="e3ca717b-a897-418a-bbef-5c7e35c76e4b" InstallerVersion="500">
         <Icon Id="icon.ico" SourceFile="..\Resources\Icons\ApplicationIcon.ico" />
         <Property Id="ARPPRODUCTICON" Value="icon.ico" />
         <SetProperty Id="ARPINSTALLLOCATION" Value="[ApplicationFolder]" After="CostFinalize" />
-      
-        <MajorUpgrade Schedule="afterInstallInitialize" DowngradeErrorMessage="A later version of [ProductName] is already installed. Setup will now exit." />
-        
+
+        <MajorUpgrade Schedule="afterInstallInitialize"
+                      DowngradeErrorMessage="A later version of [ProductName] is already installed. Setup will now exit." />
+
+        <!-- Force overwrite all files regardless of version stamp.
+             'a' = force all files, 'm' = rewrite HKLM, 'u' = rewrite HKCU, 's' = recreate shortcuts. -->
+        <Property Id="REINSTALLMODE" Value="amus" />
+
         <Media Id="1" Cabinet="CabFile.cab" EmbedCab="yes" />
 
         <Feature Id="Application" Title="Installer" Level="1">
@@ -14,38 +23,147 @@
             <ComponentGroupRef Id="Languages" />
         </Feature>
 
-        <CustomAction Id="InstallShell" ExeCommand="--register-shell-extension &quot;[INSTALLFOLDER]FileConverterExtension.dll&quot;" Execute="deferred" Return="check" Impersonate="no" FileRef="FileConverter.exe" />
-        <CustomAction Id="UninstallShell" ExeCommand="--unregister-shell-extension &quot;[INSTALLFOLDER]FileConverterExtension.dll&quot;" Execute="deferred" Return="check" Impersonate="no" FileRef="FileConverter.exe" />
-        <CustomAction Id="PostInstallInit" ExeCommand="--post-install-init" Execute="immediate" FileRef="FileConverter.exe" />
+        <!-- ========== Close running processes before install / uninstall ========== -->
+        <!-- CloseApplication will attempt to gracefully close, then forcefully terminate. -->
+        <util:CloseApplication Id="CloseFC"
+            Target="FileConverter.exe"
+            RebootPrompt="no"
+            CloseMessage="yes"
+            Description="File Converter must be closed before continuing."
+            TerminateProcess="1"
+            Timeout="5" />
 
+        <util:CloseApplication Id="CloseExplorer"
+            Target="explorer.exe"
+            RebootPrompt="no"
+            CloseMessage="no"
+            TerminateProcess="1"
+            Timeout="3"
+            Condition="REMOVE~=&quot;ALL&quot; OR UPGRADINGPRODUCTCODE" />
+
+        <!-- ========== Custom Actions ========== -->
+        <CustomAction Id="InstallShell"
+            ExeCommand="--register-shell-extension &quot;[INSTALLFOLDER]FileConverterExtension.dll&quot;"
+            Execute="deferred" Return="check" Impersonate="no" FileRef="FileConverter.exe" />
+
+        <CustomAction Id="UninstallShell"
+            ExeCommand="--unregister-shell-extension &quot;[INSTALLFOLDER]FileConverterExtension.dll&quot;"
+            Execute="deferred" Return="check" Impersonate="no" FileRef="FileConverter.exe" />
+
+        <CustomAction Id="PostInstallInit"
+            ExeCommand="--post-install-init"
+            Execute="immediate" FileRef="FileConverter.exe" />
+
+        <!-- Restart explorer.exe after uninstall (so user gets their shell back) -->
+        <SetProperty Id="RestartExplorer"
+            Value="&quot;[SystemFolder]cmd.exe&quot; /c start explorer.exe"
+            Before="RestartExplorer" Sequence="execute" />
+        <CustomAction Id="RestartExplorer"
+            BinaryRef="Wix4UtilCA_X64"
+            DllEntry="WixQuietExec"
+            Execute="deferred" Return="ignore" Impersonate="yes" />
+
+        <!-- Delete user settings when REMOVESETTINGS=1 -->
+        <SetProperty Id="DeleteUserSettings"
+            Value="&quot;[SystemFolder]cmd.exe&quot; /c rmdir /S /Q &quot;[LocalAppDataFolder]FileConverter&quot;"
+            Before="DeleteUserSettings" Sequence="execute" />
+        <CustomAction Id="DeleteUserSettings"
+            BinaryRef="Wix4UtilCA_X64"
+            DllEntry="WixQuietExec"
+            Execute="deferred" Return="ignore" Impersonate="yes" />
+
+        <!-- ========== UI ========== -->
         <UI>
             <ProgressText Action="InstallFiles" Template="File: [1],  Directory: [9],  Size: [6]" Message="Copying new files" />
             <ProgressText Action="InstallShell" Message="Register shell extension to Windows Explorer" />
             <ProgressText Action="UninstallShell" Message="Unregister shell extension from Windows Explorer" />
             <ProgressText Action="PostInstallInit" Message="Initialize conversion presets" />
+            <ProgressText Action="RestartExplorer" Message="Restarting Windows Explorer..." />
+            <ProgressText Action="DeleteUserSettings" Message="Removing user settings..." />
         </UI>
 
         <PropertyRef Id="WIX_IS_NETFRAMEWORK_48_OR_LATER_INSTALLED" />
-        <Launch Condition="Installed OR WIX_IS_NETFRAMEWORK_48_OR_LATER_INSTALLED" Message="This application requires .NET Framework 4.8. Please install the .NET Framework then run this installer again." />
+        <Launch Condition="Installed OR WIX_IS_NETFRAMEWORK_48_OR_LATER_INSTALLED"
+               Message="This application requires .NET Framework 4.8. Please install the .NET Framework then run this installer again." />
+
+        <!-- Property to control whether user settings are removed during uninstall. Default = keep -->
+        <Property Id="REMOVESETTINGS" Value="0" />
 
         <InstallExecuteSequence>
-            <Custom Action="UninstallShell" Before="RemoveRegistryValues" Condition="(NOT UPGRADINGPRODUCTCODE) AND (REMOVE~=&quot;ALL&quot;)" />
-            <Custom Action="InstallShell" After="WriteRegistryValues" Condition="NOT Installed" />
-            <Custom Action="PostInstallInit" After="InstallFinalize" Condition="NOT Installed" />
+            <!-- WixCloseApplications runs automatically via the Util extension (Before="InstallValidate") -->
+
+            <Custom Action="UninstallShell" Before="RemoveRegistryValues"
+                Condition="(NOT UPGRADINGPRODUCTCODE) AND (REMOVE~=&quot;ALL&quot;)" />
+            <Custom Action="InstallShell" After="WriteRegistryValues"
+                Condition="NOT Installed" />
+            <Custom Action="PostInstallInit" After="InstallFinalize"
+                Condition="NOT Installed" />
+
+            <!-- Delete user settings if user chose to remove them -->
+            <Custom Action="DeleteUserSettings" After="RemoveFiles"
+                Condition="(REMOVE~=&quot;ALL&quot;) AND (NOT UPGRADINGPRODUCTCODE) AND (REMOVESETTINGS=&quot;1&quot;)" />
+
+            <!-- Restart explorer after uninstall completes -->
+            <Custom Action="RestartExplorer" After="InstallFinalize"
+                Condition="(REMOVE~=&quot;ALL&quot;) OR UPGRADINGPRODUCTCODE" />
         </InstallExecuteSequence>
-        
+
+        <!-- ========== Standard WixUI + custom uninstall settings dialog ========== -->
         <ui:WixUI Id="WixUI_InstallDir" />
         <Property Id="MSIUSEREALADMINDETECTION" Value="1" />
         <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
-        <Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable" Secure="yes" /> <!-- This avoid an issue where the installer detect the utilization of the extension dll in explorer and then, ask to the user to restart these applications. The restart fails. -->
-      
-        <WixVariable Id="WixUILicenseRtf" Value="License.rtf" /> 
+        <Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable" Secure="yes" />
+
+        <WixVariable Id="WixUILicenseRtf" Value="License.rtf" />
         <WixVariable Id="WixUIBannerBmp" Value="..\Resources\Installer\Banner.bmp" />
-        <WixVariable Id="WixUIDialogBmp" Value="..\Resources\Installer\UI.bmp" /> 
+        <WixVariable Id="WixUIDialogBmp" Value="..\Resources\Installer\UI.bmp" />
         <WixVariable Id="WixUIExclamationIco" Value="..\Resources\Installer\ErrorIcon.ico" />
         <WixVariable Id="WixUIInfoIco" Value="..\Resources\Installer\WarningIcon.ico" />
-        <!--<WixVariable Id="WixUINewIco" Value="Icon16x16.ico" />
-        <WixVariable Id="WixUIUpIco" Value="Icon16x16.ico" />-->
+
+        <!-- Custom dialog: Ask user whether to remove settings during uninstall -->
+        <UI Id="CustomRemoveUI">
+            <Dialog Id="RemoveSettingsDlg" Width="370" Height="270" Title="[ProductName] Setup">
+                <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44"
+                         TabSkip="no" Text="WixUI_Bmp_Banner" />
+                <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+                <Control Id="Title" Type="Text" X="15" Y="6" Width="200" Height="15"
+                         Transparent="yes" NoPrefix="yes"
+                         Text="{\WixUI_Font_Title}Remove User Settings" />
+                <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="15"
+                         Transparent="yes" NoPrefix="yes"
+                         Text="Choose whether to keep or remove your user settings." />
+
+                <Control Id="KeepSettingsRadio" Type="RadioButtonGroup"
+                         X="25" Y="70" Width="320" Height="100" Property="REMOVESETTINGS">
+                    <RadioButtonGroup Property="REMOVESETTINGS">
+                        <RadioButton Value="0" X="0" Y="0" Width="320" Height="18"
+                                     Text="{\WixUI_Font_Normal}Keep user settings (recommended)" />
+                        <RadioButton Value="1" X="0" Y="30" Width="320" Height="18"
+                                     Text="{\WixUI_Font_Normal}Remove all user settings and configuration files" />
+                    </RadioButtonGroup>
+                </Control>
+
+                <Control Id="SettingsInfo" Type="Text" X="40" Y="130" Width="300" Height="50"
+                         NoPrefix="yes"
+                         Text="User settings are stored in:&#xA;[LocalAppDataFolder]FileConverter\&#xA;&#xA;If you choose to remove them, all your conversion presets and preferences will be permanently deleted." />
+
+                <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+                <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="Back">
+                    <Publish Event="NewDialog" Value="MaintenanceTypeDlg" />
+                </Control>
+                <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17"
+                         Default="yes" Text="Remove">
+                    <Publish Event="EndDialog" Value="Return" />
+                </Control>
+                <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17"
+                         Cancel="yes" Text="Cancel">
+                    <Publish Event="SpawnDialog" Value="CancelDlg" />
+                </Control>
+            </Dialog>
+
+            <!-- Wire: MaintenanceTypeDlg "Remove" -> RemoveSettingsDlg (instead of VerifyReadyDlg) -->
+            <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="RemoveSettingsDlg" />
+        </UI>
     </Package>
 
     <Fragment>
@@ -62,10 +180,17 @@
             <!-- Application -->
             <Component Guid="{EFA8CCE9-E501-4C80-AE33-710D11CC2525}">
                 <File Id="FileConverter.exe" Source="$(var.FileConverter.TargetPath)" KeyPath="yes" Checksum="yes">
-                    <Shortcut Id="ApplicationStartMenuShortcut" Directory="ApplicationStartMenuShortcut" Advertise="yes" WorkingDirectory="INSTALLFOLDER" Name="File Converter" Description="Convert and compress everything in 2 clicks!" Icon="Icon.exe">
+                    <Shortcut Id="ApplicationStartMenuShortcut" Directory="ApplicationStartMenuShortcut"
+                              Advertise="yes" WorkingDirectory="INSTALLFOLDER"
+                              Name="File Converter" Description="Convert and compress everything in 2 clicks!"
+                              Icon="Icon.exe">
                         <Icon Id="Icon.exe" SourceFile="$(var.FileConverter.TargetPath)" />
                     </Shortcut>
-                    <Shortcut Id="ApplicationSettingsStartMenuShortcut" Directory="ApplicationStartMenuShortcut" Advertise="yes" WorkingDirectory="INSTALLFOLDER" Name="File Converter Settings" Description="Configure the conversion and compression presets" Arguments="--settings" Icon="SettingsIcon.exe">
+                    <Shortcut Id="ApplicationSettingsStartMenuShortcut" Directory="ApplicationStartMenuShortcut"
+                              Advertise="yes" WorkingDirectory="INSTALLFOLDER"
+                              Name="File Converter Settings"
+                              Description="Configure the conversion and compression presets"
+                              Arguments="--settings" Icon="SettingsIcon.exe">
                         <Icon Id="SettingsIcon.exe" SourceFile="$(var.FileConverter.TargetPath)" />
                     </Shortcut>
                 </File>
@@ -74,7 +199,7 @@
             <Component Guid="{3E003FD3-46CA-4F4F-811E-663332828229}">
                 <File Id="FileConverter.exe.config" Source="$(var.FileConverter.TargetDir)FileConverter.exe.config" KeyPath="yes" Checksum="yes" />
             </Component>
-            
+
             <!-- Extension -->
             <Component Guid="{35B28709-C56C-4F18-9A41-4B238402EE48}">
                 <File Id="FileConverterExtension.dll" Source="$(var.FileConverterExtension.TargetDir)FileConverterExtension.dll" KeyPath="yes" Checksum="yes" />
@@ -82,7 +207,7 @@
             <Component Guid="{566A73FB-427D-43C4-9ABC-92F2528F6D0A}">
                 <File Id="SharpShell.dll" Source="$(var.FileConverterExtension.TargetDir)SharpShell.dll" KeyPath="yes" Checksum="yes" />
             </Component>
-            
+
             <!-- Third parties -->
             <Component Guid="{bae11ca4-0842-46f0-b0e5-95ecc1c994fc}">
                 <File Id="CommunityToolkit.Mvvm.dll" Source="$(var.FileConverter.TargetDir)CommunityToolkit.Mvvm.dll" KeyPath="yes" Checksum="yes" />
@@ -119,15 +244,15 @@
             </Component>
 
             <Component Guid="{24efefd7-f7ef-4f4c-95d8-e6d136581a86}">
-              <File Id="Magick.Native.dll" Source="$(var.FileConverter.TargetDir)Magick.Native-Q16-x64.dll" KeyPath="yes" Checksum="yes" />
+                <File Id="Magick.Native.dll" Source="$(var.FileConverter.TargetDir)Magick.Native-Q16-x64.dll" KeyPath="yes" Checksum="yes" />
             </Component>
             <Component Guid="{b3326fc3-a314-41fd-a199-ba8e07c80370}">
-              <File Id="Magick.NET.Core.dll" Source="$(var.FileConverter.TargetDir)Magick.NET.Core.dll" KeyPath="yes" Checksum="yes" />
+                <File Id="Magick.NET.Core.dll" Source="$(var.FileConverter.TargetDir)Magick.NET.Core.dll" KeyPath="yes" Checksum="yes" />
             </Component>
             <Component Guid="{3B94F60C-29BF-4E51-AF85-C10DF19B0B2E}">
-              <File Id="Magick.NET.dll" Source="$(var.FileConverter.TargetDir)Magick.NET-Q16-AnyCPU.dll" KeyPath="yes" Checksum="yes" />
+                <File Id="Magick.NET.dll" Source="$(var.FileConverter.TargetDir)Magick.NET-Q16-AnyCPU.dll" KeyPath="yes" Checksum="yes" />
             </Component>
-          
+
             <Component Guid="{BEEAAC73-C479-4080-83B1-2B1448C7378C}">
                 <File Id="ffmpeg.exe" Source="$(var.FileConverter.TargetDir)ffmpeg.exe" KeyPath="yes" Checksum="yes" />
             </Component>
@@ -149,7 +274,7 @@
             <Component Guid="{6268D6C0-42D8-4487-AC4B-33C9874C9E2F}">
                 <File Id="WpfAnimatedGif.dll" KeyPath="yes" Source="$(var.FileConverter.TargetDir)WpfAnimatedGif.dll" Checksum="yes" />
             </Component>
-            
+
             <!-- Configuration and documentation -->
             <Component Guid="{AD58807A-2AE2-48BE-AB55-9BDE9BBE37F3}">
                 <File Id="Settings.default.xml" Source="$(var.FileConverter.ProjectDir)\Settings.default.xml" KeyPath="yes" />
@@ -169,6 +294,13 @@
                 <RegistryKey Root="HKCU" Key="Software\FileConverter" ForceDeleteOnUninstall="yes">
                     <RegistryValue Name="Path" Type="string" Value="[INSTALLFOLDER]FileConverter.exe" />
                 </RegistryKey>
+            </Component>
+
+            <!-- Clean up entire install folder on uninstall (removes leftover files not tracked by MSI) -->
+            <Component Id="CleanupOnUninstall" Guid="{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}">
+                <RegistryValue Root="HKCU" Key="Software\FileConverter" Name="CleanupMarker"
+                               Type="string" Value="1" KeyPath="yes" />
+                <util:RemoveFolderEx On="uninstall" Property="INSTALLFOLDER" />
             </Component>
         </ComponentGroup>
     </Fragment>
