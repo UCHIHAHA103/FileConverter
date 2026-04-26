@@ -90,6 +90,12 @@ namespace FileConverter
                     {
                         System.Threading.Thread.CurrentThread.CurrentCulture = this.applicationLanguage;
                         System.Threading.Thread.CurrentThread.CurrentUICulture = this.applicationLanguage;
+
+                        // Also set Resources.Culture so that {x:Static project:Resources.XXX}
+                        // bindings in XAML pick up the correct localized strings when windows
+                        // are created. Without this, ResourceManager falls back to the neutral
+                        // culture (English) even though CurrentUICulture is set correctly.
+                        Properties.Resources.Culture = this.applicationLanguage;
                     }
                     catch (System.Exception exception)
                     {
