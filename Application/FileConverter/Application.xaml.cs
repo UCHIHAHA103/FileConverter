@@ -280,6 +280,25 @@ namespace FileConverter
                             Application.AskForShutdown();
                             return;
 
+                        case "remove-user-data":
+                            // Called by the MSI uninstaller to delete user settings.
+                            try
+                            {
+                                string userDataPath = FileConverterExtension.PathHelpers.GetUserDataFolderPath;
+                                if (System.IO.Directory.Exists(userDataPath))
+                                {
+                                    System.IO.Directory.Delete(userDataPath, true);
+                                    Debug.Log($"User data folder deleted: {userDataPath}");
+                                }
+                            }
+                            catch (System.Exception ex)
+                            {
+                                Debug.Log($"Failed to delete user data: {ex.Message}");
+                            }
+
+                            Application.AskForShutdown();
+                            return;
+
                         case "register-shell-extension":
                             {
                                 if (index >= args.Length - 1)
