@@ -33,6 +33,7 @@ namespace FileConverter.ViewModels
         private PresetNode selectedPreset;
         private Settings settings;
         private bool displaySeeChangeLogLink = true;
+        private string languageBeforeEdit;
 
         private RelayCommand<string> openUrlCommand;
         private RelayCommand getChangeLogContentCommand;
@@ -92,6 +93,10 @@ namespace FileConverter.ViewModels
             this.outputTypes.GroupDescriptions.Add(new PropertyGroupDescription("Category"));
 
             this.SupportedCultures = Helpers.GetSupportedCultures().ToArray();
+
+            // Record the language at the time the Settings window opens so we can
+            // detect changes when the user clicks Save.
+            this.languageBeforeEdit = this.Settings?.ApplicationLanguage?.Name ?? string.Empty;
 
             this.InitializeCompatibleInputExtensions();
             this.InitializePresetFolders();
@@ -482,9 +487,6 @@ namespace FileConverter.ViewModels
         {
             try
             {
-                // Record the current language before saving to detect changes.
-                var previousLanguage = Ioc.Default.GetRequiredService<ISettingsService>().Settings?.ApplicationLanguage;
-
                 // Compute parent folder names.
                 this.settings.ConversionPresets.Clear();
                 this.ComputePresetsParentFoldersNamesAndFillSettings(this.presetsRootFolder, new List<string>());
@@ -496,17 +498,23 @@ namespace FileConverter.ViewModels
                 INavigationService navigationService = Ioc.Default.GetRequiredService<INavigationService>();
                 navigationService.Close(Pages.Settings, false);
 
-                // If language changed, restart the application so the new culture
-                // takes effect on all WPF resource dictionaries and XAML views.
-                var newLanguage = this.settings.ApplicationLanguage;
-                bool languageChanged = (previousLanguage == null && newLanguage != null)
-                    || (previousLanguage != null && !previousLanguage.Equals(newLanguage));
+                // Detect language change by comparing with the value recorded when
+                // the Settings window was first opened.
+                string newLanguage = this.settings.ApplicationLanguage?.Name ?? string.Empty;
+                bool languageChanged = !string.Equals(this.languageBeforeEdit, newLanguage, StringComparison.OrdinalIgnoreCase);
 
                 if (languageChanged)
                 {
-                    Diagnostics.Debug.Log($"Language changed from '{previousLanguage?.Name}' to '{newLanguage?.Name}'. Restarting application...");
-                    var exePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
-                    System.Diagnostics.Process.Start(exePath, "--settings");
+                    Diagnostics.Debug.Log($"Language changed from '{this.languageBeforeEdit}' to '{newLanguage}'. Restarting application...");
+
+                    // Restart the application so the new culture takes full effect
+                    // on all WPF resource dictionaries and XAML views.
+                    string exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
+                    var startInfo = new System.Diagnostics.ProcessStartInfo(exePath, "--settings")
+                    {
+                        UseShellExecute = true,
+                    };
+                    System.Diagnostics.Process.Start(startInfo);
                     System.Windows.Application.Current.Dispatcher.BeginInvoke(
                         (Action)(() => System.Windows.Application.Current.Shutdown()));
                 }
