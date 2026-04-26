@@ -45,13 +45,12 @@
             ExeCommand="--post-install-init"
             Execute="immediate" FileRef="FileConverter.exe" />
 
-        <!-- Delete user settings when REMOVESETTINGS=1 -->
-        <SetProperty Id="DeleteUserSettings"
-            Value="&quot;[SystemFolder]cmd.exe&quot; /c rmdir /S /Q &quot;[LocalAppDataFolder]FileConverter&quot;"
-            Before="DeleteUserSettings" Sequence="execute" />
+        <!-- Delete user settings when REMOVESETTINGS=1.
+             Uses FileConverter.exe itself to delete its own AppData folder,
+             avoiding dependency on WixQuietExec / Wix4UtilCA_X64 (error 2753). -->
         <CustomAction Id="DeleteUserSettings"
-            BinaryRef="Wix4UtilCA_X64"
-            DllEntry="WixQuietExec"
+            FileRef="FileConverter.exe"
+            ExeCommand="--remove-user-data"
             Execute="deferred" Return="ignore" Impersonate="yes" />
 
         <PropertyRef Id="WIX_IS_NETFRAMEWORK_48_OR_LATER_INSTALLED" />
