@@ -131,8 +131,20 @@ namespace FileConverter.Services
 
                     settings = userSettings;
                 }
-                catch (Exception)
+                catch (Exception exception)
                 {
+                    // Backup the corrupted settings file before asking the user.
+                    try
+                    {
+                        string backupPath = FileConverterExtension.PathHelpers.UserSettingsFilePath + ".corrupted." + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".bak";
+                        File.Copy(FileConverterExtension.PathHelpers.UserSettingsFilePath, backupPath, true);
+                        Debug.Log($"Corrupted settings backed up to: {backupPath}");
+                    }
+                    catch
+                    {
+                        // Ignore backup failure.
+                    }
+
                     MessageBoxResult messageBoxResult =
                         MessageBox.Show(Resources.ErrorCantLoadSettings,
                             Resources.Error,

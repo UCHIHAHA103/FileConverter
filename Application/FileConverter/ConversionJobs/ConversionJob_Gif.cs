@@ -38,8 +38,14 @@ namespace FileConverter.ConversionJobs
 
             string inputFilePath = string.Empty;
 
-            // If the output is an image start to convert it into png before send it to ffmpeg.
-            if (Helpers.GetExtensionCategory(extension) == Helpers.InputCategoryNames.Image && extension != "png")
+            // If the input is a static image (not a format ffmpeg can handle natively for animation),
+            // convert it to PNG first before sending to ffmpeg for GIF creation.
+            // Skip this for formats that ffmpeg handles natively (including animated webp).
+            bool needsPngIntermediate = Helpers.GetExtensionCategory(extension) == Helpers.InputCategoryNames.Image
+                && extension != "png"
+                && extension != "webp"; // ffmpeg handles animated webp natively; don't flatten to single frame.
+
+            if (needsPngIntermediate)
             {
                 // Generate intermediate file path.
                 string fileName = Path.GetFileName(this.OutputFilePath);

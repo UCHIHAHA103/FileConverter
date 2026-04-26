@@ -79,6 +79,8 @@ namespace FileConverter.ConversionJobs
             {
                 CreateNoWindow = true,
                 UseShellExecute = false,
+                // Redirect stdin so we can send 'q' for graceful termination.
+                RedirectStandardInput = true,
                 // Do NOT redirect stdout: ffmpeg does not write to stdout in our usage and
                 // redirecting it without reading would eventually fill the pipe buffer and
                 // deadlock the process. See upstream PR #732 and issues #749 #740 #739
@@ -439,6 +441,9 @@ namespace FileConverter.ConversionJobs
                 throw new Exception("The conversion preset must be valid.");
             }
 
+            // Collect all ffmpeg stderr output for logging to disk.
+            var fullStderrLog = new System.Text.StringBuilder();
+
             for (int index = 0; index < this.ffmpegArgumentStringByPass.Count; index++)
             {
                 FFMpegPass currentPass = this.ffmpegArgumentStringByPass[index];
@@ -459,18 +464,39 @@ namespace FileConverter.ConversionJobs
                             {
                                 if (this.CancelIsRequested && !exeProcess.HasExited)
                                 {
-                                    exeProcess.Kill();
+                                    // Graceful termination: send 'q' to ffmpeg stdin.
+                                    try
+                                    {
+                                        exeProcess.StandardInput.Write("q");
+                                        exeProcess.StandardInput.Flush();
+                                    }
+                                    catch
+                                    {
+                                        // stdin may already be closed.
+                                    }
+
+                                    // Wait up to 3 seconds for graceful exit, then force kill.
+                                    if (!exeProcess.WaitForExit(3000))
+                                    {
+                                        try { exeProcess.Kill(); } catch { }
+                                    }
+
+                                    break;
                                 }
 
                                 string result = reader.ReadLine();
 
                                 this.ParseFFMPEGOutput(result);
+                                fullStderrLog.AppendLine(result);
 
                                 Diagnostics.Debug.Log($"ffmpeg output: {result}");
                             }
                         }
 
-                        exeProcess.WaitForExit();
+                        if (!exeProcess.HasExited)
+                        {
+                            exeProcess.WaitForExit();
+                        }
                     }
                 }
                 catch
@@ -478,6 +504,94 @@ namespace FileConverter.ConversionJobs
                     this.ConversionFailed(Properties.Resources.ErrorFailedToLaunchFFMPEG);
                     throw;
                 }
+            }
+
+            // --- GPU auto-fallback: if hardware encoding failed, retry with software ---
+            if (this.State == ConversionState.Failed && !this.CancelIsRequested)
+            {
+                Helpers.HardwareAccelerationMode hwAccel = settingsService.Settings.HardwareAccelerationMode;
+                if (hwAccel != Helpers.HardwareAccelerationMode.Off &&
+                    (this.ConversionPreset.OutputType == OutputType.Mkv || this.ConversionPreset.OutputType == OutputType.Mp4))
+                {
+                    Diagnostics.Debug.Log($"Hardware encoding ({hwAccel}) failed. Retrying with software encoder (libx264)...");
+
+                    // Reset state for retry.
+                    this.state_resetForRetry();
+
+                    // Rebuild arguments forcing software encoding.
+                    this.ffmpegArgumentStringByPass.Clear();
+                    this.FillFFMpegArgumentsListSoftwareFallback();
+
+                    // Re-run conversion with software encoder.
+                    for (int index = 0; index < this.ffmpegArgumentStringByPass.Count; index++)
+                    {
+                        FFMpegPass currentPass = this.ffmpegArgumentStringByPass[index];
+                        this.UserState = currentPass.Name;
+                        this.ffmpegProcessStartInfo.Arguments = currentPass.Arguments;
+
+                        Diagnostics.Debug.Log($"[SW Fallback] Execute: {this.ffmpegProcessStartInfo.FileName} {this.ffmpegProcessStartInfo.Arguments}.");
+
+                        try
+                        {
+                            using (Process exeProcess = Process.Start(this.ffmpegProcessStartInfo))
+                            {
+                                using (StreamReader reader = exeProcess.StandardError)
+                                {
+                                    while (!reader.EndOfStream)
+                                    {
+                                        if (this.CancelIsRequested && !exeProcess.HasExited)
+                                        {
+                                            try { exeProcess.StandardInput.Write("q"); exeProcess.StandardInput.Flush(); } catch { }
+                                            if (!exeProcess.WaitForExit(3000)) { try { exeProcess.Kill(); } catch { } }
+                                            break;
+                                        }
+
+                                        string result = reader.ReadLine();
+                                        this.ParseFFMPEGOutput(result);
+                                        fullStderrLog.AppendLine(result);
+                                        Diagnostics.Debug.Log($"ffmpeg output: {result}");
+                                    }
+                                }
+
+                                if (!exeProcess.HasExited)
+                                {
+                                    exeProcess.WaitForExit();
+                                }
+                            }
+                        }
+                        catch
+                        {
+                            this.ConversionFailed(Properties.Resources.ErrorFailedToLaunchFFMPEG);
+                            throw;
+                        }
+                    }
+                }
+            }
+
+            // --- Write ffmpeg stderr log to Logs/ folder ---
+            try
+            {
+                string logsDir = System.IO.Path.Combine(
+                    FileConverterExtension.PathHelpers.GetUserDataFolderPath, "Logs");
+                if (!System.IO.Directory.Exists(logsDir))
+                {
+                    System.IO.Directory.CreateDirectory(logsDir);
+                }
+
+                string safeFileName = System.IO.Path.GetFileNameWithoutExtension(this.InputFilePath);
+                // Remove invalid chars from filename.
+                foreach (char c in System.IO.Path.GetInvalidFileNameChars())
+                {
+                    safeFileName = safeFileName.Replace(c, '_');
+                }
+
+                string logFilePath = System.IO.Path.Combine(logsDir,
+                    $"{safeFileName}_{DateTime.Now:yyyyMMdd_HHmmss}.log");
+                System.IO.File.WriteAllText(logFilePath, fullStderrLog.ToString());
+            }
+            catch (Exception logEx)
+            {
+                Diagnostics.Debug.Log($"Failed to write ffmpeg log: {logEx.Message}");
             }
 
             Diagnostics.Debug.Log(string.Empty);
@@ -496,6 +610,52 @@ namespace FileConverter.ConversionJobs
 
                 File.Delete(currentPass.FileToDelete);
             }
+        }
+
+        /// <summary>
+        /// Reset internal state so the conversion can be retried (used by GPU fallback).
+        /// </summary>
+        private void state_resetForRetry()
+        {
+            // Use reflection to reset the private state since ConversionFailed sets it to Failed.
+            // We need to reset to InProgress for the retry.
+            typeof(ConversionJob).GetProperty("State",
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                ?.SetValue(this, ConversionState.InProgress);
+            this.Progress = 0f;
+
+            // Delete the failed output file if it exists.
+            if (System.IO.File.Exists(this.OutputFilePath))
+            {
+                try { System.IO.File.Delete(this.OutputFilePath); } catch { }
+            }
+        }
+
+        /// <summary>
+        /// Build ffmpeg arguments using software encoding (libx264) as a fallback
+        /// when hardware encoding (NVENC/AMF) fails.
+        /// </summary>
+        private void FillFFMpegArgumentsListSoftwareFallback()
+        {
+            const string baseArgs = "-n";
+
+            int videoEncodingQuality = this.ConversionPreset.GetSettingsValue<int>(ConversionPreset.ConversionSettingKeys.VideoQuality);
+            VideoEncodingSpeed videoEncodingSpeed = this.ConversionPreset.GetSettingsValue<VideoEncodingSpeed>(ConversionPreset.ConversionSettingKeys.VideoEncodingSpeed);
+            int audioEncodingBitrate = this.ConversionPreset.GetSettingsValue<int>(ConversionPreset.ConversionSettingKeys.AudioBitrate);
+
+            // Force software encoding path.
+            string transformArgs = ConversionJob_FFMPEG.ComputeTransformArgs(this.ConversionPreset, Helpers.HardwareAccelerationMode.Off);
+            string videoFilteringArgs = ConversionJob_FFMPEG.Encapsulate("-vf", transformArgs);
+
+            string audioArgs = "-an";
+            if (this.ConversionPreset.GetSettingsValue<bool>(ConversionPreset.ConversionSettingKeys.EnableAudio))
+            {
+                audioArgs = $"-c:a aac -qscale:a {this.AACBitrateToQualityIndex(audioEncodingBitrate)}";
+            }
+
+            string encoderArgs = $"-c:v libx264 -preset {this.H264EncodingSpeedToPreset(videoEncodingSpeed)} -crf {this.H264QualityToCRF(videoEncodingQuality)} {audioArgs} {videoFilteringArgs}";
+            string arguments = $"{baseArgs} -i \"{this.InputFilePath}\" {encoderArgs} \"{this.OutputFilePath}\"";
+            this.ffmpegArgumentStringByPass.Add(new FFMpegPass(arguments));
         }
 
         private void ParseFFMPEGOutput(string input)
