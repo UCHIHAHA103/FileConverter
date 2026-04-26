@@ -38,39 +38,39 @@ jobs:
         shell: pwsh
         run: dotnet restore Installer\Installer.wixproj
 
-      # Find the WiX SDK in NuGet cache and symlink it into the MSBuild Sdks folder
-      # so that the default SDK resolver can find Sdk="WixToolset.Sdk" during eval.
+      # Copy WiX SDK from NuGet cache into MSBuild's Sdks folder so the default
+      # SDK resolver finds it. setup-msbuild adds a shim to PATH; we use vswhere
+      # to find the real MSBuild install directory.
       - name: Install WiX SDK into MSBuild Sdks folder
         shell: pwsh
         run: |
-          # Locate msbuild.exe Sdks directory
-          $msbPath = (Get-Command msbuild.exe).Source
-          $msbDir  = Split-Path $msbPath
-          $sdksDir = Join-Path $msbDir "Sdks"
-          Write-Host "MSBuild Sdks dir: $sdksDir"
-
-          # Source: NuGet cache
-          $src = Join-Path $env:USERPROFILE ".nuget\packages\wixtoolset.sdk\5.0.2"
-          if (-not (Test-Path $src)) { Write-Error "WixToolset.Sdk not in NuGet cache"; exit 1 }
-          Write-Host "WiX SDK source: $src"
-
-          # Create WixToolset.Sdk folder in Sdks dir with proper layout
-          $dst = Join-Path $sdksDir "WixToolset.Sdk"
-          if (-not (Test-Path $dst)) {
-            # Use directory junction (no admin needed)
-            cmd /c "mklink /J `"$dst`" `"$src`""
-            Write-Host "Junction created: $dst -> $src"
+          # Find real MSBuild path via vswhere
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vsRoot = & $vswhere -latest -requires Microsoft.Component.MSBuild -property installationPath 2>$null
+          $msbExe = Get-ChildItem "$vsRoot\MSBuild\Current\Bin" -Filter "MSBuild.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $msbExe) {
+            # Fallback: use the PATH version
+            $msbExe = Get-Command msbuild.exe -ErrorAction SilentlyContinue
           }
+          $msbDir = Split-Path $msbExe.FullName
+          $sdksDir = Join-Path $msbDir "Sdks"
+          Write-Host "MSBuild dir:  $msbDir"
+          Write-Host "MSBuild Sdks: $sdksDir"
+
+          # WiX SDK from NuGet cache
+          $src = Join-Path $env:USERPROFILE ".nuget\packages\wixtoolset.sdk\5.0.2"
+          if (-not (Test-Path $src)) { Write-Error "WixToolset.Sdk not in NuGet cache!"; exit 1 }
+          Write-Host "WiX SDK src:  $src"
+
+          # Copy into Sdks\WixToolset.Sdk
+          $dst = Join-Path $sdksDir "WixToolset.Sdk"
+          Copy-Item $src $dst -Recurse -Force
+          Write-Host "Copied to: $dst"
 
           # Verify
-          $propsFile = Join-Path $dst "Sdk\Sdk.props"
-          if (Test-Path $propsFile) {
-            Write-Host "Verified: $propsFile exists"
-          } else {
-            Write-Error "$propsFile not found after junction!"
-            Get-ChildItem $dst -Recurse | Select-Object FullName | Format-Table -AutoSize
-            exit 1
-          }
+          $props = Join-Path $dst "Sdk\Sdk.props"
+          if (Test-Path $props) { Write-Host "OK: $props exists" }
+          else { Write-Error "$props NOT found!"; Get-ChildItem $dst -Recurse | Select-Object FullName; exit 1 }
 
       # Build entire solution with classic msbuild.exe, exactly like VS 2022.
       - name: Build Solution (Release|x64)
