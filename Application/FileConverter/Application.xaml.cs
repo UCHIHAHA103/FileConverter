@@ -24,6 +24,9 @@ namespace FileConverter
     using System.Threading;
     using System.Windows;
 
+    using System.Globalization;
+    using System.Reflection;
+
     using CommunityToolkit.Mvvm.DependencyInjection;
 
     using FileConverter.ConversionJobs;
@@ -87,7 +90,13 @@ namespace FileConverter
 
             // Redirect standard output to the parent process in case the application is launch from command line.
             AttachConsole(ATTACH_PARENT_PROCESS);
-            
+
+            // Register a handler so that ResourceManager can locate satellite assemblies
+            // placed under the legacy "Languages\<culture>\" folder used by the WiX installer.
+            // Without this, ResourceManager only probes "<exe>\<culture>\" which does not exist
+            // in the installed layout, causing all UI strings to fall back to English.
+            AppDomain.CurrentDomain.AssemblyResolve += this.OnAssemblyResolve;
+
             this.RegisterServices();
 
             this.Initialize();
@@ -492,6 +501,45 @@ namespace FileConverter
 
                 Application.AskForShutdown();
             }
+        }
+        private Assembly OnAssemblyResolve(object sender, ResolveEventArgs args)
+        {
+            // ResourceManager requests satellite assemblies with names like
+            // "FileConverter.resources, Version=..., Culture=ja-jp, ...".
+            // By default .NET probes "<exe>\ja-jp\FileConverter.resources.dll",
+            // but the WiX installer places them under "<exe>\Languages\ja-jp\".
+            // We bridge the gap here.
+            try
+            {
+                AssemblyName requestedName = new AssemblyName(args.Name);
+                if (!requestedName.Name.EndsWith(".resources", StringComparison.OrdinalIgnoreCase))
+                {
+                    return null;
+                }
+
+                CultureInfo culture = requestedName.CultureInfo;
+                if (culture == null || string.IsNullOrEmpty(culture.Name))
+                {
+                    return null;
+                }
+
+                string exeDir = Path.GetDirectoryName(Uri.UnescapeDataString(
+                    new UriBuilder(Assembly.GetExecutingAssembly().CodeBase).Path));
+
+                string satellitePath = Path.Combine(exeDir, "Languages", culture.Name,
+                    requestedName.Name + ".dll");
+
+                if (File.Exists(satellitePath))
+                {
+                    return Assembly.LoadFrom(satellitePath);
+                }
+            }
+            catch
+            {
+                // Swallow – do not break the resolve chain.
+            }
+
+            return null;
         }
     }
 }
