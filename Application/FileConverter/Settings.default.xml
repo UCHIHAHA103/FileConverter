@@ -2204,6 +2204,135 @@
         <Settings Key="ImageMaximumSize" Value="4096" />
         <OutputFileNameTemplate>(p)(f)-ai</OutputFileNameTemplate>
     </ConversionPreset>
+    <ConversionPreset Name="H.265 (HEVC)/To Mkv" OutputType="Mkv" IsDefaultSettings="true">
+        <InputTypes>3gp</InputTypes>
+        <InputTypes>3gpp</InputTypes>
+        <InputTypes>avi</InputTypes>
+        <InputTypes>bik</InputTypes>
+        <InputTypes>flv</InputTypes>
+        <InputTypes>m4v</InputTypes>
+        <InputTypes>mkv</InputTypes>
+        <InputTypes>mov</InputTypes>
+        <InputTypes>mp4</InputTypes>
+        <InputTypes>mpg</InputTypes>
+        <InputTypes>mpeg</InputTypes>
+        <InputTypes>ogv</InputTypes>
+        <InputTypes>rm</InputTypes>
+        <InputTypes>ts</InputTypes>
+        <InputTypes>webm</InputTypes>
+        <InputTypes>wmv</InputTypes>
+        <InputTypes>gif</InputTypes>
+        <InputPostConversionAction>None</InputPostConversionAction>
+        <Settings Key="EnableAudio" Value="True" />
+        <Settings Key="VideoQuality" Value="30" />
+        <Settings Key="VideoEncodingSpeed" Value="Medium" />
+        <Settings Key="VideoScale" Value="1" />
+        <Settings Key="VideoRotation" Value="0" />
+        <Settings Key="AudioBitrate" Value="155" />
+        <Settings Key="EnableFFMPEGCustomCommand" Value="True" />
+        <Settings Key="FFMPEGCustomCommand" Value="-c:v libx265 -crf 28 -preset medium -c:a aac -b:a 128k -tag:v hvc1" />
+        <OutputFileNameTemplate>(p)(f) (h265)</OutputFileNameTemplate>
+    </ConversionPreset>
+    <ConversionPreset Name="H.265 (HEVC)/To Mp4" OutputType="Mp4" IsDefaultSettings="true">
+        <InputTypes>3gp</InputTypes>
+        <InputTypes>3gpp</InputTypes>
+        <InputTypes>avi</InputTypes>
+        <InputTypes>bik</InputTypes>
+        <InputTypes>flv</InputTypes>
+        <InputTypes>m4v</InputTypes>
+        <InputTypes>mkv</InputTypes>
+        <InputTypes>mov</InputTypes>
+        <InputTypes>mp4</InputTypes>
+        <InputTypes>mpg</InputTypes>
+        <InputTypes>mpeg</InputTypes>
+        <InputTypes>ogv</InputTypes>
+        <InputTypes>rm</InputTypes>
+        <InputTypes>ts</InputTypes>
+        <InputTypes>webm</InputTypes>
+        <InputTypes>wmv</InputTypes>
+        <InputTypes>gif</InputTypes>
+        <InputPostConversionAction>None</InputPostConversionAction>
+        <Settings Key="EnableAudio" Value="True" />
+        <Settings Key="VideoQuality" Value="30" />
+        <Settings Key="VideoEncodingSpeed" Value="Medium" />
+        <Settings Key="VideoScale" Value="1" />
+        <Settings Key="VideoRotation" Value="0" />
+        <Settings Key="AudioBitrate" Value="155" />
+        <Settings Key="EnableFFMPEGCustomCommand" Value="True" />
+        <Settings Key="FFMPEGCustomCommand" Value="-c:v libx265 -crf 28 -preset medium -c:a aac -b:a 128k -tag:v hvc1" />
+        <OutputFileNameTemplate>(p)(f) (h265)</OutputFileNameTemplate>
+    </ConversionPreset>
+    <ConversionPreset Name="To Opus" OutputType="Ogg" IsDefaultSettings="true">
+        <InputTypes>aac</InputTypes>
+        <InputTypes>aiff</InputTypes>
+        <InputTypes>ape</InputTypes>
+        <InputTypes>flac</InputTypes>
+        <InputTypes>m4a</InputTypes>
+        <InputTypes>m4b</InputTypes>
+        <InputTypes>mp3</InputTypes>
+        <InputTypes>oga</InputTypes>
+        <InputTypes>ogg</InputTypes>
+        <InputTypes>opus</InputTypes>
+        <InputTypes>wav</InputTypes>
+        <InputTypes>wma</InputTypes>
+        <InputTypes>3gp</InputTypes>
+        <InputTypes>3gpp</InputTypes>
+        <InputTypes>avi</InputTypes>
+        <InputTypes>flv</InputTypes>
+        <InputTypes>mkv</InputTypes>
+        <InputTypes>mov</InputTypes>
+        <InputTypes>mp4</InputTypes>
+        <InputTypes>webm</InputTypes>
+        <InputTypes>wmv</InputTypes>
+        <InputPostConversionAction>None</InputPostConversionAction>
+        <Settings Key="AudioBitrate" Value="128" />
+        <Settings Key="AudioChannelCount" Value="0" />
+        <Settings Key="EnableFFMPEGCustomCommand" Value="True" />
+        <Settings Key="FFMPEGCustomCommand" Value="-vn -c:a libopus -b:a 128k" />
+        <OutputFileNameTemplate>(p)(f)</OutputFileNameTemplate>
+    </ConversionPreset>
+    <ConversionPreset Name="Extract Frames/To Png (1 fps)" OutputType="Png" IsDefaultSettings="true">
+        <InputTypes>3gp</InputTypes>
+        <InputTypes>3gpp</InputTypes>
+        <InputTypes>avi</InputTypes>
+        <InputTypes>flv</InputTypes>
+        <InputTypes>m4v</InputTypes>
+        <InputTypes>mkv</InputTypes>
+        <InputTypes>mov</InputTypes>
+        <InputTypes>mp4</InputTypes>
+        <InputTypes>mpg</InputTypes>
+        <InputTypes>mpeg</InputTypes>
+        <InputTypes>ogv</InputTypes>
+        <InputTypes>rm</InputTypes>
+        <InputTypes>ts</InputTypes>
+        <InputTypes>webm</InputTypes>
+        <InputTypes>wmv</InputTypes>
+        <InputTypes>gif</InputTypes>
+        <InputPostConversionAction>None</InputPostConversionAction>
+        <Settings Key="ImageScale" Value="1" />
+        <Settings Key="ImageRotation" Value="0" />
+        <Settings Key="ImageClampSizePowerOf2" Value="False" />
+        <Settings Key="ImageMaximumSize" Value="0" />
+        <OutputFileNameTemplate>(p)(f)_frame_%04d</OutputFileNameTemplate>
+    </ConversionPreset>
+    <ConversionPreset Name="Burn Subtitles/To Mp4" OutputType="Mp4" IsDefaultSettings="true">
+        <InputTypes>mkv</InputTypes>
+        <InputTypes>mp4</InputTypes>
+        <InputTypes>avi</InputTypes>
+        <InputTypes>mov</InputTypes>
+        <InputTypes>webm</InputTypes>
+        <InputTypes>ts</InputTypes>
+        <InputPostConversionAction>None</InputPostConversionAction>
+        <Settings Key="EnableAudio" Value="True" />
+        <Settings Key="VideoQuality" Value="30" />
+        <Settings Key="VideoEncodingSpeed" Value="Medium" />
+        <Settings Key="VideoScale" Value="1" />
+        <Settings Key="VideoRotation" Value="0" />
+        <Settings Key="AudioBitrate" Value="155" />
+        <Settings Key="EnableFFMPEGCustomCommand" Value="True" />
+        <Settings Key="FFMPEGCustomCommand" Value="-c:v libx264 -preset medium -crf 23 -vf &quot;subtitles='(input)'&quot; -c:a aac -b:a 128k" />
+        <OutputFileNameTemplate>(p)(f) (hardsub)</OutputFileNameTemplate>
+    </ConversionPreset>
     <CheckUpgradeAtStartup>true</CheckUpgradeAtStartup>
     <CopyFilesInClipboardAfterConversion>false</CopyFilesInClipboardAfterConversion>
 </Settings>
