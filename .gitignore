@@ -197,3 +197,9 @@ FakesAssemblies/
 # Ignore the installer signing commands file
 Installer/Installer.sign
 Certificate/*
+
+# Local debug artifacts (downloaded CI logs, build outputs kept for analysis)
+wix-binlog.zip
+build.binlog*
+构建/
+构建日志.md
