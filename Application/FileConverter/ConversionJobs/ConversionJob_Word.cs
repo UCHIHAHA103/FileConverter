@@ -101,6 +101,9 @@ namespace FileConverter.ConversionJobs
 
             Debug.Log("Convert word document to pdf.");
             // this.document.ExportAsFixedFormat(this.intermediateFilePath, Word.WdExportFormat.wdExportFormatPDF);
+            // Use wdExportCreateWordBookmarks to preserve hyperlinks in the PDF output.
+            // Previously used wdExportCreateHeadingBookmarks which only created heading-level
+            // bookmarks but lost all clickable hyperlinks. (#200)
             this.document.ExportAsFixedFormat(this.intermediateFilePath, 
                 Word.Enums.WdExportFormat.wdExportFormatPDF, 
                 false, 
@@ -110,7 +113,7 @@ namespace FileConverter.ConversionJobs
                 Word.Enums.WdExportItem.wdExportDocumentContent, 
                 true, 
                 true, 
-                Word.Enums.WdExportCreateBookmarks.wdExportCreateHeadingBookmarks, 
+                Word.Enums.WdExportCreateBookmarks.wdExportCreateWordBookmarks, 
                 true);
 
             Debug.Log($"Close word document '{this.InputFilePath}'.");
