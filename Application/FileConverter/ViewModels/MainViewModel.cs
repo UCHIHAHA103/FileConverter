@@ -2,8 +2,11 @@
 
 namespace FileConverter.ViewModels
 {
+    using System;
     using System.Collections.ObjectModel;
     using System.ComponentModel;
+    using System.Linq;
+    using System.Windows;
     using System.Windows.Input;
 
     using CommunityToolkit.Mvvm.ComponentModel;
@@ -24,6 +27,9 @@ namespace FileConverter.ViewModels
         private RelayCommand showSettingsCommand;
         private RelayCommand showDiagnosticsCommand;
         private RelayCommand<CancelEventArgs> closeCommand;
+        private RelayCommand<DragEventArgs> dropFilesCommand;
+        private RelayCommand<ConversionJob> openOutputFileCommand;
+        private RelayCommand<ConversionJob> openOutputFolderCommand;
 
         /// <summary>
         /// Initializes a new instance of the MainViewModel class.
@@ -101,6 +107,45 @@ namespace FileConverter.ViewModels
             }
         }
 
+        public ICommand DropFilesCommand
+        {
+            get
+            {
+                if (this.dropFilesCommand == null)
+                {
+                    this.dropFilesCommand = new RelayCommand<DragEventArgs>(this.DropFiles);
+                }
+
+                return this.dropFilesCommand;
+            }
+        }
+
+        public ICommand OpenOutputFileCommand
+        {
+            get
+            {
+                if (this.openOutputFileCommand == null)
+                {
+                    this.openOutputFileCommand = new RelayCommand<ConversionJob>(this.OpenOutputFile);
+                }
+
+                return this.openOutputFileCommand;
+            }
+        }
+
+        public ICommand OpenOutputFolderCommand
+        {
+            get
+            {
+                if (this.openOutputFolderCommand == null)
+                {
+                    this.openOutputFolderCommand = new RelayCommand<ConversionJob>(this.OpenOutputFolder);
+                }
+
+                return this.openOutputFolderCommand;
+            }
+        }
+
         private void Close(CancelEventArgs args)
         {
             // Check if any conversion is still in progress.
@@ -118,13 +163,13 @@ namespace FileConverter.ViewModels
 
                 if (hasActiveJobs)
                 {
-                    var result = System.Windows.MessageBox.Show(
+                    var result = MessageBox.Show(
                         "Conversions are still in progress. Are you sure you want to close?\n转换仍在进行中，确定要关闭吗？",
                         "File Converter",
-                        System.Windows.MessageBoxButton.YesNo,
-                        System.Windows.MessageBoxImage.Warning);
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Warning);
 
-                    if (result == System.Windows.MessageBoxResult.No)
+                    if (result == MessageBoxResult.No)
                     {
                         args.Cancel = true;
                         return;
@@ -134,6 +179,126 @@ namespace FileConverter.ViewModels
 
             INavigationService navigationService = Ioc.Default.GetRequiredService<INavigationService>();
             navigationService.Close(Pages.Main, args != null);
+        }
+
+        private void DropFiles(DragEventArgs e)
+        {
+            if (e == null || !e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                return;
+            }
+
+            string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
+            if (files == null || files.Length == 0)
+            {
+                return;
+            }
+
+            ISettingsService settingsService = Ioc.Default.GetRequiredService<ISettingsService>();
+            if (settingsService.Settings?.ConversionPresets == null ||
+                settingsService.Settings.ConversionPresets.Count == 0)
+            {
+                MessageBox.Show("No conversion presets available.\n没有可用的转换预设。",
+                    "File Converter", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            string firstExtension = System.IO.Path.GetExtension(files[0]);
+            if (!string.IsNullOrEmpty(firstExtension))
+            {
+                firstExtension = firstExtension.Substring(1).ToLowerInvariant();
+            }
+
+            var compatiblePresets = settingsService.Settings.ConversionPresets
+                .Where(p => p.InputTypes != null && p.InputTypes.Contains(firstExtension))
+                .ToList();
+
+            if (compatiblePresets.Count == 0)
+            {
+                MessageBox.Show($"No preset supports '.{firstExtension}' input.\n没有预设支持 '.{firstExtension}' 输入格式。",
+                    "File Converter", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            ConversionPreset selectedPreset = compatiblePresets[0];
+
+            var confirmResult = MessageBox.Show(
+                $"Convert {files.Length} file(s) using preset '{selectedPreset.FullName}'?\n" +
+                $"使用预设 '{selectedPreset.FullName}' 转换 {files.Length} 个文件？",
+                "File Converter — Drag & Drop",
+                MessageBoxButton.OKCancel, MessageBoxImage.Question);
+
+            if (confirmResult != MessageBoxResult.OK)
+            {
+                return;
+            }
+
+            IConversionService conversionService = Ioc.Default.GetRequiredService<IConversionService>();
+
+            try
+            {
+                foreach (string filePath in files)
+                {
+                    ConversionJob job = ConversionJobFactory.Create(selectedPreset, filePath);
+                    conversionService.RegisterConversionJob(job);
+                    this.ConversionJobs.Add(job);
+                    job.PropertyChanged += this.ConversionJob_PropertyChanged;
+                }
+
+                conversionService.ConvertFilesAsync();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to create conversion jobs:\n{ex.Message}",
+                    "File Converter", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void OpenOutputFile(ConversionJob job)
+        {
+            if (job == null || string.IsNullOrEmpty(job.OutputFilePath) || !System.IO.File.Exists(job.OutputFilePath))
+            {
+                return;
+            }
+
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = job.OutputFilePath,
+                    UseShellExecute = true,
+                });
+            }
+            catch (Exception ex)
+            {
+                Diagnostics.Debug.Log($"Failed to open output file: {ex.Message}");
+            }
+        }
+
+        private void OpenOutputFolder(ConversionJob job)
+        {
+            if (job == null || string.IsNullOrEmpty(job.OutputFilePath))
+            {
+                return;
+            }
+
+            try
+            {
+                string folder = System.IO.Path.GetDirectoryName(job.OutputFilePath);
+                if (System.IO.File.Exists(job.OutputFilePath))
+                {
+                    // Select the file in Explorer.
+                    System.Diagnostics.Process.Start("explorer.exe", $"/select, \"{job.OutputFilePath}\"");
+                }
+                else if (System.IO.Directory.Exists(folder))
+                {
+                    System.Diagnostics.Process.Start("explorer.exe", folder);
+                }
+            }
+            catch (Exception ex)
+            {
+                Diagnostics.Debug.Log($"Failed to open output folder: {ex.Message}");
+            }
         }
 
         private void ConversionJob_PropertyChanged(object sender, PropertyChangedEventArgs eventArgs)
