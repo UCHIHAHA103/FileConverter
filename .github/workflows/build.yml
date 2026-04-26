@@ -17,100 +17,110 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
       - name: Setup NuGet
         uses: NuGet/setup-nuget@v2
 
-      - name: Setup .NET (global.json pins 8.0.x, needed for WiX 5 SDK)
+      - name: Setup .NET (for dotnet restore of WiX SDK)
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
-      # Classic NuGet restore for packages.config-style projects (FileConverter, FileConverterExtension).
+      # Classic NuGet restore for packages.config projects
       - name: Restore NuGet packages (solution)
         shell: pwsh
         run: nuget restore FileConverter.sln
 
-      # Restore the WiX installer project (SDK-style, needs dotnet restore to pull WixToolset.Sdk).
-      - name: Restore Installer (WiX SDK + packages)
+      # Restore WiX SDK to NuGet cache so MSBuild can find it
+      - name: Restore Installer (WiX SDK)
         shell: pwsh
         run: dotnet restore Installer\Installer.wixproj
 
-      # ----- Build entire solution with dotnet msbuild -----
-      # The original author builds via "Visual Studio 2022 → Build Solution (Release|x64)".
-      # The sln only defines Release|x64 and Debug|x64 configurations. All three projects
-      # (FileConverterExtension, FileConverter, Installer) are built together so that
-      # $(SolutionDir) is defined, ProjectReference outputs resolve correctly, and the
-      # PostBuildEvent (copy ffmpeg, gswin64c, satellite assemblies) works.
-      #
-      # We use `dotnet msbuild` (not `msbuild.exe` from setup-msbuild) because it can
-      # resolve the WixToolset.Sdk from NuGet cache. It can also build .NET Framework 4.8
-      # projects as long as the targeting pack is present (it is on windows-latest).
+      # Find the WiX SDK in NuGet cache and symlink it into the MSBuild Sdks folder
+      # so that the default SDK resolver can find Sdk="WixToolset.Sdk" during eval.
+      - name: Install WiX SDK into MSBuild Sdks folder
+        shell: pwsh
+        run: |
+          # Locate msbuild.exe Sdks directory
+          $msbPath = (Get-Command msbuild.exe).Source
+          $msbDir  = Split-Path $msbPath
+          $sdksDir = Join-Path $msbDir "Sdks"
+          Write-Host "MSBuild Sdks dir: $sdksDir"
+
+          # Source: NuGet cache
+          $src = Join-Path $env:USERPROFILE ".nuget\packages\wixtoolset.sdk\5.0.2"
+          if (-not (Test-Path $src)) { Write-Error "WixToolset.Sdk not in NuGet cache"; exit 1 }
+          Write-Host "WiX SDK source: $src"
+
+          # Create WixToolset.Sdk folder in Sdks dir with proper layout
+          $dst = Join-Path $sdksDir "WixToolset.Sdk"
+          if (-not (Test-Path $dst)) {
+            # Use directory junction (no admin needed)
+            cmd /c "mklink /J `"$dst`" `"$src`""
+            Write-Host "Junction created: $dst -> $src"
+          }
+
+          # Verify
+          $propsFile = Join-Path $dst "Sdk\Sdk.props"
+          if (Test-Path $propsFile) {
+            Write-Host "Verified: $propsFile exists"
+          } else {
+            Write-Error "$propsFile not found after junction!"
+            Get-ChildItem $dst -Recurse | Select-Object FullName | Format-Table -AutoSize
+            exit 1
+          }
+
+      # Build entire solution with classic msbuild.exe, exactly like VS 2022.
       - name: Build Solution (Release|x64)
         shell: pwsh
-        run: dotnet msbuild FileConverter.sln -p:Configuration=Release -p:Platform=x64 -m -v:normal -bl:build.binlog
+        run: msbuild FileConverter.sln /p:Configuration=Release /p:Platform=x64 /m /v:minimal /nologo
 
-      - name: Dump build diagnostics on failure
+      - name: Dump diagnostics on failure
         if: failure()
         shell: pwsh
         run: |
-          Write-Host "=== Installer output ==="
+          Write-Host "=== Installer bin ==="
           if (Test-Path "Installer\bin") {
             Get-ChildItem "Installer\bin" -Recurse | Select-Object FullName, Length | Format-Table -AutoSize
-          } else { Write-Host "(no Installer\bin)" }
-          Write-Host "`n=== FileConverter output ==="
+          } else { Write-Host "(empty)" }
+          Write-Host "`n=== FileConverter bin ==="
           if (Test-Path "Application\FileConverter\bin") {
-            Get-ChildItem "Application\FileConverter\bin" -Recurse -Include "*.exe","*.dll","*.resources.dll" |
+            Get-ChildItem "Application\FileConverter\bin" -Recurse -Include "*.exe","*.msi" |
               Select-Object FullName, Length | Format-Table -AutoSize
           }
 
-      - name: Upload binlog on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: msbuild-binlog
-          path: build.binlog
-          if-no-files-found: ignore
-          retention-days: 7
-
-      - name: Verify satellite assemblies (zh-CN)
+      - name: Verify zh-CN satellite assembly
         shell: pwsh
         run: |
           $outDir = "Application\FileConverter\bin\x64\Release"
           $langDir = Join-Path $outDir "Languages"
           $stdDir  = Join-Path $outDir "zh-CN"
-
-          $hasLegacy  = Test-Path (Join-Path $langDir "zh-CN\FileConverter.resources.dll")
-          $hasStandard = Test-Path (Join-Path $stdDir "FileConverter.resources.dll")
-
-          Write-Host "Legacy path:   $hasLegacy"
-          Write-Host "Standard path: $hasStandard"
-
-          if (-not ($hasLegacy -or $hasStandard)) {
-            Write-Error "zh-CN satellite assembly missing!"
-            exit 1
-          }
-
-          Write-Host "`n== Cultures =="
+          $hasL = Test-Path (Join-Path $langDir "zh-CN\FileConverter.resources.dll")
+          $hasS = Test-Path (Join-Path $stdDir "FileConverter.resources.dll")
+          Write-Host "Legacy: $hasL | Standard: $hasS"
+          if (-not ($hasL -or $hasS)) { Write-Error "zh-CN missing!"; exit 1 }
+          Write-Host "All cultures:"
           Get-ChildItem $outDir -Directory | Where-Object {
             Test-Path (Join-Path $_.FullName "FileConverter.resources.dll")
           } | ForEach-Object { Write-Host "  $($_.Name)" }
-
           if (Test-Path $langDir) {
             Get-ChildItem $langDir -Directory | ForEach-Object { Write-Host "  (legacy) $($_.Name)" }
           }
 
-      - name: Locate installer
+      - name: Locate MSI installer
         id: installer_out
         shell: pwsh
         run: |
-          $msi = Get-ChildItem -Path "Installer\bin" -Recurse -Include "*.msi" -ErrorAction SilentlyContinue | Select-Object -First 1
+          $msi = Get-ChildItem "Installer\bin" -Recurse -Include "*.msi" -ErrorAction SilentlyContinue | Select-Object -First 1
           if ($msi) {
-            Write-Host "MSI found: $($msi.FullName) ($($msi.Length) bytes)"
-            Write-Output "installer_path=$($msi.FullName)" >> $env:GITHUB_OUTPUT
-            Write-Output "installer_dir=$($msi.DirectoryName)" >> $env:GITHUB_OUTPUT
+            Write-Host "MSI: $($msi.FullName) ($($msi.Length) bytes)"
+            "installer_path=$($msi.FullName)" >> $env:GITHUB_OUTPUT
+            "installer_dir=$($msi.DirectoryName)" >> $env:GITHUB_OUTPUT
           } else {
-            Write-Warning "No MSI produced."
-            Write-Output "installer_path=" >> $env:GITHUB_OUTPUT
+            Write-Warning "No MSI found"
+            "installer_path=" >> $env:GITHUB_OUTPUT
           }
 
       # ----- Artifacts -----
@@ -131,13 +141,10 @@ jobs:
           path: ${{ steps.installer_out.outputs.installer_dir }}/*.msi
           retention-days: 14
 
-      # ----- Auto release on tag push -----
+      # ----- Release -----
       - name: Create GitHub Release (on tag)
         if: startsWith(github.ref, 'refs/tags/v') && steps.installer_out.outputs.installer_path != ''
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            ${{ steps.installer_out.outputs.installer_path }}
+          files: ${{ steps.installer_out.outputs.installer_path }}
           generate_release_notes: true
-          draft: false
-          prerelease: false
