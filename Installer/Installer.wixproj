@@ -1,4 +1,4 @@
-﻿<Project Sdk="WixToolset.Sdk/5.0.2">
+﻿<Project Sdk="WixToolset.Sdk">
   <PropertyGroup>
     <ProductVersion>2.2.0</ProductVersion>
     <OutputName>FileConverter-setup</OutputName> <!-- https://github.com/firegiant/HeatWaveSupport/issues/73 -->
