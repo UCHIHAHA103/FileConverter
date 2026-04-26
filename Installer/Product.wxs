@@ -49,6 +49,13 @@
             ExeCommand="--post-install-init"
             Execute="immediate" Return="ignore" FileRef="FileConverter.exe" />
 
+        <!-- Fallback shell registration: runs AFTER InstallFinalize (immediate mode)
+             so FileConverter.exe is guaranteed to be on disk. This handles the case where
+             the deferred InstallShell CA fails due to MSI upgrade residue (error 2753). -->
+        <CustomAction Id="PostInstallShellFallback"
+            ExeCommand="--register-shell-extension &quot;[INSTALLFOLDER]FileConverterExtension.dll&quot;"
+            Execute="immediate" Return="ignore" FileRef="FileConverter.exe" />
+
         <!-- Delete user settings when REMOVESETTINGS=1.
              Uses FileConverter.exe itself to delete its own AppData folder,
              avoiding dependency on WixQuietExec / Wix4UtilCA_X64 (error 2753). -->
@@ -70,6 +77,8 @@
             <Custom Action="InstallShell" After="WriteRegistryValues"
                 Condition="NOT Installed" />
             <Custom Action="PostInstallInit" After="InstallFinalize"
+                Condition="NOT Installed" />
+            <Custom Action="PostInstallShellFallback" After="PostInstallInit"
                 Condition="NOT Installed" />
 
             <!-- Delete user settings if user chose to remove them -->
