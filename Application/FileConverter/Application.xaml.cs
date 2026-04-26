@@ -98,6 +98,9 @@ namespace FileConverter
             // in the installed layout, causing all UI strings to fall back to English.
             AppDomain.CurrentDomain.AssemblyResolve += this.OnAssemblyResolve;
 
+            // Apply dark theme if Windows is in dark mode.
+            this.ApplySystemTheme();
+
             this.RegisterServices();
 
             this.Initialize();
@@ -517,6 +520,47 @@ namespace FileConverter
                 Application.AskForShutdown();
             }
         }
+
+        private void ApplySystemTheme()
+        {
+            try
+            {
+                // Check Windows registry for dark mode preference.
+                using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                    @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"))
+                {
+                    if (key != null)
+                    {
+                        object value = key.GetValue("AppsUseLightTheme");
+                        if (value is int intValue && intValue == 0)
+                        {
+                            // Dark mode is active — swap the Colors.xaml resource dictionary.
+                            var mergedDicts = this.Resources.MergedDictionaries;
+                            for (int i = 0; i < mergedDicts.Count; i++)
+                            {
+                                var dict = mergedDicts[i];
+                                if (dict.Source != null && dict.Source.OriginalString.Contains("Colors.xaml")
+                                    && !dict.Source.OriginalString.Contains("Dark"))
+                                {
+                                    mergedDicts[i] = new ResourceDictionary
+                                    {
+                                        Source = new Uri("Views/Resources/DarkColors.xaml", UriKind.Relative)
+                                    };
+
+                                    Debug.Log("Dark theme applied (Windows dark mode detected).");
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.Log($"Failed to detect system theme: {ex.Message}");
+            }
+        }
+
         private Assembly OnAssemblyResolve(object sender, ResolveEventArgs args)
         {
             // ResourceManager requests satellite assemblies with names like
@@ -549,9 +593,10 @@ namespace FileConverter
                     return Assembly.LoadFrom(satellitePath);
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Swallow – do not break the resolve chain.
+                // Log but do not break the resolve chain.
+                System.Diagnostics.Trace.WriteLine($"AssemblyResolve failed for '{args.Name}': {ex.Message}");
             }
 
             return null;
