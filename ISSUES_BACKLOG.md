@@ -412,7 +412,7 @@ ConversionJob_FFMPEG.cs
 | 指标 | 数量 |
 |---|---:|
 | 抓取的 issues 页数 | 10 |
-| 独立 open issues | ~130 |
+| 独立 open issues | ~176 |
 | open pull requests | 7 |
 | 已 review 的关键 closed PR | 2（#699 #712 #707） |
 | 可直接合并的 PR 总数 | **6** |
@@ -420,4 +420,96 @@ ConversionJob_FFMPEG.cs
 
 ---
 
-_最后更新：2026-04-26_
+## 十、第 11-13 页 Issues 补充（2017-2021 早期积压）
+
+> 抓取时间：2026-04-27  
+> 覆盖范围：第 11 页（25 条） + 第 12 页（12 条） + 第 13 页（9 条） = **46 条**
+
+### 10.1 第 11 页（2021 年）
+
+| # | 标题 | 标签 | 日期 |
+|---|---|---|---|
+| #205 | Not Showing in Context Menu in Xyplorer | new feature | 2021-11-08 |
+| #204 | WEBA to other audio files | new feature | 2021-11-06 |
+| #201 | Future request, convert to jpg, set size | new feature | 2021-10-25 |
+| #200 | Conversion from Word to PDF no longer with hyperlinks | bug | 2021-10-16 |
+| #194 | Mp4 conversion isn't supported on some Social media sites like Instagram | new feature | 2021-09-22 |
+| #189 | Feature Request: Support for AutoCAD Drawing file formats convert to pdf | new feature | 2021-09-05 |
+| #184 | Error extracting cda to mp3 | bug | 2021-07-31 |
+| #181 | word to pdf = error 21-07-2021 | need more info | 2021-07-21 |
+| #180 | Feature Request: Support for Corel .psp and .pspimage file formats | need more info | 2021-07-14 |
+| #177 | Allow to specify mp4 quality and scale in exact numbers | new feature | 2021-07-11 |
+| #175 | MP4 files not playable in Whatsapp | new feature | 2021-07-05 |
+| #174 | Extract documents and images to plain text | new feature | 2021-06-18 |
+| #171 | Feature request: Aspect Ratio | new feature | 2021-05-27 |
+| #170 | ico has bad quality | bug | 2021-05-21 |
+| #169 | Add .txt to document options | new feature | 2021-05-20 |
+| #168 | Can't find the output file(s) when down sampling to wav 8bit | bug | 2021-05-20 |
+| #165 | Conversion options do not display | bug | 2021-05-08 |
+| #164 | Export Failed Because this feature is not installed | need more info | 2021-05-06 |
+| #161 | I get the "Error opening filters!" | bug | 2021-04-13 |
+| #159 | Error while opening encoder for output stream | bug | 2021-03-27 |
+| #155 | Fail to open document with Microsoft Office (Office 10) | — | 2021-03-11 |
+| #153 | Please Add Webp Lossless preset | new feature | 2021-02-27 |
+| #152 | Not working on my windows 10 | bug | 2021-02-22 |
+| #150 | Any non square image comes out smaller than 256x256 icons | new feature | 2021-02-17 |
+| #146 | Delete to recycle bin / .ts support / multi user / vid2mp3 album art | new feature | 2021-01-18 |
+
+### 10.2 第 12 页（2020-2021 年）
+
+| # | 标题 | 标签 | 日期 |
+|---|---|---|---|
+| #144 | After convert, prompt to delete | new feature | 2021-01-14 |
+| #142 | Animated gif frame times not always the same when resizing | bug | 2021-01-08 |
+| #133 | Crash without converting anything (PDF → JPG) on Windows 10 | need more info | 2020-11-28 |
+| #129 | SVG to PNG doesn't respect alpha channel | bug | 2020-10-22 |
+| #122 | ARM64 support? | new feature, help wanted | 2020-08-17 |
+| #121 | Portable version? | new feature | 2020-08-12 |
+| #119 | Please add .mhtml to type of file to convert | new feature | 2020-08-07 |
+| #117 | Hidden mode for CLI | new feature | 2020-07-13 |
+| #112 | DOC(X) 转换到 PDF 出现错误 | bug | 2020-05-19 |
+| #111 | Converting from/to .opus audio files | new feature | 2020-05-16 |
+| #109 | Subtitle extensions support | new feature, help wanted | 2020-05-15 |
+| #106 | Installer fails | bug, need more info | 2020-03-28 |
+
+### 10.3 第 13 页（2017-2018 年，最早期积压）
+
+| # | 标题 | 标签 | 日期 |
+|---|---|---|---|
+| #54 | Rotation Not Working From mp4 to mp4 | bug | 2018-07-01 |
+| #45 | Allow support to wma in audio conversions | need more info | 2018-03-10 |
+| #44 | Allow user to specify file extension | need more info | 2018-03-01 |
+| #42 | CMYK to RGB Color Model | new feature, good first issue | 2018-02-24 |
+| #38 | Webp2Gif | bug | 2018-01-02 |
+| #28 | Convert Jpg to Bitmap? | new feature, not planned | 2017-08-21 |
+| #26 | Combine multiple PDFs into a single PDF | new feature | 2017-07-31 |
+| #25 | Turning a series of images into a video | new feature | 2017-07-21 |
+| #22 | Issue installing for multiple users | new feature | 2017-05-19 |
+
+### 10.4 分类汇总（第 11-13 页）
+
+| 大类 | 数量 | 典型 issue |
+|---|---:|---|
+| 💡 格式扩展 / 新功能 | **26** | #204 WEBA、#189 AutoCAD、#174 纯文本提取、#153 Webp 无损、#122 ARM64、#111 Opus、#26 PDF 合并、#25 图片→视频 |
+| 🐛 Bug | **14** | #200 Word→PDF 超链接丢失、#170 ICO 质量差、#142 GIF 帧时间错、#129 SVG 透明通道、#54 MP4 旋转不生效、#38 Webp→Gif |
+| ❓ 需要更多信息 | **5** | #181 #180 #164 #45 #44 |
+| ✅ 已在 fork 中修复 | **4** | #121 便携版（v2.2.2）、#111 Opus（v2.2.2）、#38 Webp→Gif（v2.2.1）、#153 Webp 无损（可通过自定义命令） |
+
+### 10.5 值得关注的功能请求
+
+| 优先级 | # | 描述 | 难度 | 备注 |
+|---|---|---|---|---|
+| 🔥 高 | #26 | 合并多个 PDF 为一个 | 中 | 用户长期高票请求，可用 Ghostscript/ImageMagick 实现 |
+| 🔥 高 | #25 | 图片序列 → 视频 | 低 | ffmpeg `image2` 输入格式即可 |
+| 🔥 高 | #201 | JPG 转换时指定目标文件大小 | 中 | 需要循环压缩，AI 素材场景也需要 |
+| ⚡ 中 | #177 | MP4 质量/缩放用精确数字而非滑块 | 低 | UI 改进 |
+| ⚡ 中 | #171 | 指定输出宽高比 | 中 | ffmpeg `-vf aspect=16:9` |
+| ⚡ 中 | #117 | CLI 隐藏模式 | 低 | 已有 `--settings` 等参数 |
+| ⚡ 中 | #42 | CMYK → RGB 颜色模型转换 | 低 | ImageMagick 原生支持 |
+| ⚡ 中 | #129 | SVG → PNG 保留透明通道 | 低 | ImageMagick 配置调整 |
+| 💤 低 | #122 | ARM64 支持 | 高 | 需要交叉编译 + ffmpeg/ImageMagick ARM64 版本 |
+| 💤 低 | #189 | AutoCAD DWG → PDF | 高 | 需要 ODA 或 LibreCAD 集成 |
+
+---
+
+_最后更新：2026-04-27_
