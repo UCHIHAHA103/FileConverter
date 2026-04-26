@@ -12,6 +12,8 @@ jobs:
   build:
     name: Build FileConverter + Installer (Windows)
     runs-on: windows-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
