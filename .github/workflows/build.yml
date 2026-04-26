@@ -1,0 +1,88 @@
+name: Build
+
+on:
+  push:
+    branches: [ integration, master, main ]
+  pull_request:
+    branches: [ integration, master, main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build FileConverter (Windows)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup NuGet
+        uses: NuGet/setup-nuget@v2
+
+      - name: Restore NuGet packages
+        run: nuget restore FileConverter.sln
+        shell: pwsh
+
+      - name: Build FileConverter (Release x64)
+        run: |
+          msbuild Application\FileConverter\FileConverter.csproj `
+            /p:Configuration=Release `
+            /p:Platform="AnyCPU" `
+            /p:RestorePackagesConfig=true `
+            /m `
+            /v:minimal
+        shell: pwsh
+
+      - name: Verify satellite assemblies deployed
+        shell: pwsh
+        run: |
+          $outDir = "Application\FileConverter\bin\Release"
+          Write-Host "== Output directory: $outDir =="
+          if (-not (Test-Path $outDir)) {
+            Write-Error "Build output directory not found: $outDir"
+            exit 1
+          }
+
+          $mainDll = Join-Path $outDir "FileConverter.exe"
+          if (-not (Test-Path $mainDll)) {
+            Write-Error "FileConverter.exe not found."
+            exit 1
+          }
+          Write-Host "FileConverter.exe found."
+
+          $langDir = Join-Path $outDir "Languages"
+          $standardZhDir = Join-Path $outDir "zh-CN"
+
+          $hasLegacy = (Test-Path (Join-Path $langDir "zh-CN\FileConverter.resources.dll"))
+          $hasStandard = (Test-Path (Join-Path $standardZhDir "FileConverter.resources.dll"))
+
+          Write-Host "Legacy path (Languages\zh-CN\FileConverter.resources.dll): $hasLegacy"
+          Write-Host "Standard .NET path (zh-CN\FileConverter.resources.dll):     $hasStandard"
+
+          if (-not ($hasLegacy -or $hasStandard)) {
+            Write-Error "zh-CN satellite assembly missing from both layouts!"
+            exit 1
+          }
+
+          Write-Host "== Languages discovered =="
+          Get-ChildItem -Path $outDir -Directory | Where-Object {
+            Test-Path (Join-Path $_.FullName "FileConverter.resources.dll")
+          } | ForEach-Object { Write-Host "  (standard) $($_.Name)" }
+
+          if (Test-Path $langDir) {
+            Get-ChildItem -Path $langDir -Directory | ForEach-Object {
+              Write-Host "  (legacy)   $($_.Name)"
+            }
+          }
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: FileConverter-Release-x64
+          path: |
+            Application/FileConverter/bin/Release/**/*
+            !Application/FileConverter/bin/Release/**/*.pdb
+          retention-days: 14
