@@ -49,6 +49,7 @@ namespace FileConverter
         private bool cancelAutoExit;
         private bool isSessionEnding;
         private bool verbose;
+        private bool silent;
         private bool showSettings;
         private bool showHelp;
 
@@ -112,11 +113,20 @@ namespace FileConverter
 
             if (this.needToRunConversionThread)
             {
-                navigationService.Show(Pages.Main);
+                if (!this.silent)
+                {
+                    navigationService.Show(Pages.Main);
+                }
 
                 IConversionService conversionService = Ioc.Default.GetRequiredService<IConversionService>();
                 conversionService.ConversionJobsTerminated += this.ConversionService_ConversionJobsTerminated;
                 conversionService.ConvertFilesAsync();
+
+                // In silent mode, force auto-exit when all conversions finish.
+                if (this.silent)
+                {
+                    this.cancelAutoExit = false;
+                }
             }
 
             if (this.showSettings)
@@ -376,6 +386,11 @@ namespace FileConverter
                                 this.verbose = true;
                             }
 
+                            break;
+
+                        case "silent":
+                            // Hidden mode: run conversions without showing the main window (#117).
+                            this.silent = true;
                             break;
 
                         default:
