@@ -103,6 +103,35 @@ namespace FileConverter.ViewModels
 
         private void Close(CancelEventArgs args)
         {
+            // Check if any conversion is still in progress.
+            if (args != null)
+            {
+                bool hasActiveJobs = false;
+                foreach (var job in this.ConversionJobs)
+                {
+                    if (job.State == ConversionState.InProgress || job.State == ConversionState.Ready)
+                    {
+                        hasActiveJobs = true;
+                        break;
+                    }
+                }
+
+                if (hasActiveJobs)
+                {
+                    var result = System.Windows.MessageBox.Show(
+                        "Conversions are still in progress. Are you sure you want to close?\n转换仍在进行中，确定要关闭吗？",
+                        "File Converter",
+                        System.Windows.MessageBoxButton.YesNo,
+                        System.Windows.MessageBoxImage.Warning);
+
+                    if (result == System.Windows.MessageBoxResult.No)
+                    {
+                        args.Cancel = true;
+                        return;
+                    }
+                }
+            }
+
             INavigationService navigationService = Ioc.Default.GetRequiredService<INavigationService>();
             navigationService.Close(Pages.Main, args != null);
         }

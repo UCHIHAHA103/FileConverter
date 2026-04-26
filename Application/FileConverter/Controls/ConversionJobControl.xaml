@@ -41,7 +41,12 @@
                 <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding UserState}" FontWeight="Bold" Foreground="{Binding State, ConverterParameter=Foreground, Converter={StaticResource ConversionStateToBrush}}" />
 
                 <StackPanel Grid.Row="1" Grid.Column="1">
-                    <ProgressBar Height="18" Width="Auto" Minimum="0" Maximum="1" SmallChange="0.001" Value="{Binding Progress, Mode=OneWay}" Foreground="{Binding State, ConverterParameter=Foreground, Converter={StaticResource ConversionStateToBrush}, Mode=OneWay}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" MinWidth="100" LargeChange="0.1" />
+                    <Grid>
+                        <ProgressBar Height="18" Width="Auto" Minimum="0" Maximum="1" SmallChange="0.001" Value="{Binding Progress, Mode=OneWay}" Foreground="{Binding State, ConverterParameter=Foreground, Converter={StaticResource ConversionStateToBrush}, Mode=OneWay}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" MinWidth="100" LargeChange="0.1" />
+                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="11" FontWeight="Bold"
+                                   Text="{Binding Progress, Mode=OneWay, StringFormat={}{0:P0}}"
+                                   Visibility="{Binding State, ConverterParameter=|InProgress|Collapsed, Converter={StaticResource EnumEqualsToVisibility}}" />
+                    </Grid>
                     <TextBlock Foreground="{Binding State, ConverterParameter=Foreground, Converter={StaticResource ConversionStateToBrush}}">
                         <TextBlock.Text>
                             <MultiBinding Converter="{StaticResource ConversionJobToEstimatedRemainingDuration}" Mode="OneWay">
