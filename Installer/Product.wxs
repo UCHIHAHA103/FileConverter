@@ -12,10 +12,6 @@
         <MajorUpgrade Schedule="afterInstallInitialize"
                       DowngradeErrorMessage="A later version of [ProductName] is already installed. Setup will now exit." />
 
-        <!-- To force overwrite all files during reinstall, pass REINSTALLMODE=amus on the
-             msiexec command line, e.g.: msiexec /i setup.msi REINSTALL=ALL REINSTALLMODE=amus
-             Do NOT set REINSTALLMODE in the Property table to avoid ICE40 warnings. -->
-
         <Media Id="1" Cabinet="CabFile.cab" EmbedCab="yes" />
 
         <Feature Id="Application" Title="Installer" Level="1">
@@ -23,8 +19,7 @@
             <ComponentGroupRef Id="Languages" />
         </Feature>
 
-        <!-- ========== Close running processes before install / uninstall ========== -->
-        <!-- CloseApplication will attempt to gracefully close, then forcefully terminate. -->
+        <!-- ========== Close FileConverter.exe before install / uninstall ========== -->
         <util:CloseApplication Id="CloseFC"
             Target="FileConverter.exe"
             RebootPrompt="no"
@@ -32,14 +27,10 @@
             Description="File Converter must be closed before continuing."
             TerminateProcess="1"
             Timeout="5" />
-
-        <util:CloseApplication Id="CloseExplorer"
-            Target="explorer.exe"
-            RebootPrompt="no"
-            CloseMessage="no"
-            TerminateProcess="1"
-            Timeout="3"
-            Condition="REMOVE~=&quot;ALL&quot; OR UPGRADINGPRODUCTCODE" />
+        <!-- NOTE: Do NOT kill explorer.exe. The shell extension DLL lock is handled by
+             unregistering the extension first (UninstallShell CA), which unloads the DLL
+             from explorer's address space. Killing explorer causes the desktop to disappear
+             and makes the uninstall feel very slow. -->
 
         <!-- ========== Custom Actions ========== -->
         <CustomAction Id="InstallShell"
@@ -54,15 +45,6 @@
             ExeCommand="--post-install-init"
             Execute="immediate" FileRef="FileConverter.exe" />
 
-        <!-- Restart explorer.exe after uninstall (so user gets their shell back). -->
-        <SetProperty Id="RestartExplorer"
-            Value="&quot;[SystemFolder]cmd.exe&quot; /c start explorer.exe"
-            Before="RestartExplorer" Sequence="execute" />
-        <CustomAction Id="RestartExplorer"
-            BinaryRef="Wix4UtilCA_X64"
-            DllEntry="WixQuietExec"
-            Execute="deferred" Return="ignore" Impersonate="yes" />
-
         <!-- Delete user settings when REMOVESETTINGS=1 -->
         <SetProperty Id="DeleteUserSettings"
             Value="&quot;[SystemFolder]cmd.exe&quot; /c rmdir /S /Q &quot;[LocalAppDataFolder]FileConverter&quot;"
@@ -72,16 +54,6 @@
             DllEntry="WixQuietExec"
             Execute="deferred" Return="ignore" Impersonate="yes" />
 
-        <!-- ========== UI ========== -->
-        <UI>
-            <ProgressText Action="InstallFiles" Template="File: [1],  Directory: [9],  Size: [6]" Message="Copying new files" />
-            <ProgressText Action="InstallShell" Message="Register shell extension to Windows Explorer" />
-            <ProgressText Action="UninstallShell" Message="Unregister shell extension from Windows Explorer" />
-            <ProgressText Action="PostInstallInit" Message="Initialize conversion presets" />
-            <ProgressText Action="RestartExplorer" Message="Restarting Windows Explorer..." />
-            <ProgressText Action="DeleteUserSettings" Message="Removing user settings..." />
-        </UI>
-
         <PropertyRef Id="WIX_IS_NETFRAMEWORK_48_OR_LATER_INSTALLED" />
         <Launch Condition="Installed OR WIX_IS_NETFRAMEWORK_48_OR_LATER_INSTALLED"
                Message="This application requires .NET Framework 4.8. Please install the .NET Framework then run this installer again." />
@@ -90,8 +62,6 @@
         <Property Id="REMOVESETTINGS" Value="0" />
 
         <InstallExecuteSequence>
-            <!-- WixCloseApplications runs automatically via the Util extension (Before="InstallValidate") -->
-
             <Custom Action="UninstallShell" Before="RemoveRegistryValues"
                 Condition="(NOT UPGRADINGPRODUCTCODE) AND (REMOVE~=&quot;ALL&quot;)" />
             <Custom Action="InstallShell" After="WriteRegistryValues"
@@ -102,14 +72,9 @@
             <!-- Delete user settings if user chose to remove them -->
             <Custom Action="DeleteUserSettings" After="RemoveFiles"
                 Condition="(REMOVE~=&quot;ALL&quot;) AND (NOT UPGRADINGPRODUCTCODE) AND (REMOVESETTINGS=&quot;1&quot;)" />
-
-            <!-- Restart explorer after removing files (deferred CA must be before InstallFinalize) -->
-            <Custom Action="RestartExplorer" Before="InstallFinalize"
-                Condition="(REMOVE~=&quot;ALL&quot;) OR UPGRADINGPRODUCTCODE" />
         </InstallExecuteSequence>
 
-        <!-- ========== Standard WixUI + custom uninstall settings dialog ========== -->
-        <ui:WixUI Id="WixUI_InstallDir" />
+        <!-- ========== UI ========== -->
         <Property Id="MSIUSEREALADMINDETECTION" Value="1" />
         <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
         <Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable" Secure="yes" />
@@ -120,8 +85,19 @@
         <WixVariable Id="WixUIExclamationIco" Value="..\Resources\Installer\ErrorIcon.ico" />
         <WixVariable Id="WixUIInfoIco" Value="..\Resources\Installer\WarningIcon.ico" />
 
-        <!-- Custom dialog: Ask user whether to remove settings during uninstall -->
-        <UI Id="CustomRemoveUI">
+        <!-- Use WixUI_InstallDir as the base, then inject our custom dialog.
+             All UI customization MUST be inside a single <UI> block to properly
+             override the standard WixUI dialog flow. -->
+        <ui:WixUI Id="WixUI_InstallDir" />
+
+        <UI>
+            <ProgressText Action="InstallFiles" Template="File: [1],  Directory: [9],  Size: [6]" Message="Copying new files" />
+            <ProgressText Action="InstallShell" Message="Register shell extension to Windows Explorer" />
+            <ProgressText Action="UninstallShell" Message="Unregister shell extension from Windows Explorer" />
+            <ProgressText Action="PostInstallInit" Message="Initialize conversion presets" />
+            <ProgressText Action="DeleteUserSettings" Message="Removing user settings..." />
+
+            <!-- ===== Custom "Remove User Settings?" dialog ===== -->
             <Dialog Id="RemoveSettingsDlg" Width="370" Height="270" Title="[ProductName] Setup">
                 <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44"
                          TabSkip="no" Text="WixUI_Bmp_Banner" />
@@ -137,9 +113,9 @@
                          X="25" Y="70" Width="320" Height="100" Property="REMOVESETTINGS">
                     <RadioButtonGroup Property="REMOVESETTINGS">
                         <RadioButton Value="0" X="0" Y="0" Width="320" Height="18"
-                                     Text="{\WixUI_Font_Normal}Keep user settings (recommended)" />
+                                     Text="Keep user settings (recommended)" />
                         <RadioButton Value="1" X="0" Y="30" Width="320" Height="18"
-                                     Text="{\WixUI_Font_Normal}Remove all user settings and configuration files" />
+                                     Text="Remove all user settings and configuration files" />
                     </RadioButtonGroup>
                 </Control>
 
@@ -153,7 +129,7 @@
                 </Control>
                 <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17"
                          Default="yes" Text="Remove">
-                    <Publish Event="EndDialog" Value="Return" />
+                    <Publish Event="NewDialog" Value="VerifyReadyDlg" />
                 </Control>
                 <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17"
                          Cancel="yes" Text="Cancel">
@@ -161,8 +137,13 @@
                 </Control>
             </Dialog>
 
-            <!-- Wire: MaintenanceTypeDlg "Remove" -> RemoveSettingsDlg (instead of VerifyReadyDlg) -->
-            <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="RemoveSettingsDlg" />
+            <!-- Override the standard WixUI flow:
+                 MaintenanceTypeDlg -> Remove button -> RemoveSettingsDlg (instead of VerifyReadyDlg) -->
+            <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="RemoveSettingsDlg" Order="2" />
+
+            <!-- VerifyReadyDlg Back button should go to RemoveSettingsDlg when removing -->
+            <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="RemoveSettingsDlg"
+                     Condition="Installed AND (REMOVE~=&quot;ALL&quot;)" Order="2" />
         </UI>
     </Package>
 
