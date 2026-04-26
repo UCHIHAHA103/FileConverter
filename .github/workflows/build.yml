@@ -103,16 +103,62 @@ jobs:
       # use `dotnet build`. Restore is scoped to the wixproj only (not the whole sln),
       # which avoids disturbing the classic packages.config restore already done for
       # FileConverter.csproj.
+      - name: Install WiX CLI (global tool, for diagnostics)
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          dotnet tool install --global wix --version 5.0.2
+          wix --version
+
       - name: Restore Installer (scoped, wixproj only)
         shell: pwsh
         continue-on-error: true
-        run: dotnet restore Installer\Installer.wixproj
+        id: wix_restore
+        run: |
+          Write-Host "== dotnet SDK info =="
+          dotnet --info
+          Write-Host "`n== Restoring Installer.wixproj =="
+          dotnet restore Installer\Installer.wixproj --verbosity normal
 
-      - name: Build Installer (WiX MSI)
+      - name: Build Installer (WiX MSI) with binlog
         shell: pwsh
         continue-on-error: true
         id: wix_build
-        run: dotnet build Installer\Installer.wixproj --no-restore -c Release -p:Platform=x64 -v minimal
+        run: |
+          dotnet build Installer\Installer.wixproj --no-restore `
+            -c Release `
+            -p:Platform=x64 `
+            -v normal `
+            -bl:Installer\build.binlog
+
+      - name: Dump WiX build logs
+        if: always()
+        shell: pwsh
+        run: |
+          Write-Host "== Installer\bin ==" 
+          if (Test-Path "Installer\bin") {
+            Get-ChildItem "Installer\bin" -Recurse -ErrorAction SilentlyContinue |
+              Select-Object FullName, Length | Format-Table -AutoSize
+          } else { Write-Host "(no Installer\bin)" }
+
+          Write-Host "`n== Installer\obj =="
+          if (Test-Path "Installer\obj") {
+            Get-ChildItem "Installer\obj" -Recurse -ErrorAction SilentlyContinue |
+              Select-Object FullName, Length | Format-Table -AutoSize
+          } else { Write-Host "(no Installer\obj)" }
+
+          Write-Host "`n== Any *.wixobj / *.msi files anywhere =="
+          Get-ChildItem -Recurse -Include "*.msi","*.wixobj" -ErrorAction SilentlyContinue |
+            Select-Object FullName, Length | Format-Table -AutoSize
+
+      - name: Upload WiX binlog on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wix-binlog
+          path: Installer/build.binlog
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Locate installer output
         id: installer_out
