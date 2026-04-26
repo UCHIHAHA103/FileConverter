@@ -73,9 +73,11 @@ jobs:
           else { Write-Error "$props NOT found!"; Get-ChildItem $dst -Recurse | Select-Object FullName; exit 1 }
 
       # Build entire solution with classic msbuild.exe, exactly like VS 2022.
+      # /restore lets MSBuild handle all package resolution itself (avoids
+      # conflicts from the earlier dotnet restore of the wixproj).
       - name: Build Solution (Release|x64)
         shell: pwsh
-        run: msbuild FileConverter.sln /p:Configuration=Release /p:Platform=x64 /m /v:minimal /nologo
+        run: msbuild FileConverter.sln /restore /p:Configuration=Release /p:Platform=x64 /m /v:normal /nologo
 
       - name: Dump diagnostics on failure
         if: failure()
