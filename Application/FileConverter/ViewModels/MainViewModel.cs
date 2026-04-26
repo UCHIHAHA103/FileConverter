@@ -39,7 +39,7 @@ namespace FileConverter.ViewModels
             IConversionService settingsService = Ioc.Default.GetRequiredService<IConversionService>();
             this.ConversionJobs = new ObservableCollection<ConversionJob>(settingsService.ConversionJobs);
 
-            Application application = Application.Current as Application;
+            FileConverter.Application application = System.Windows.Application.Current as FileConverter.Application;
             application.OnApplicationTerminate += this.Application_OnApplicationTerminate;
         }
 
