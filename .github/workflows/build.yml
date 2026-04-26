@@ -98,14 +98,21 @@ jobs:
           }
 
       # ----- Installer build (WiX 5 SDK) -----
-      # WiX 5 is an SDK-style project. Use `msbuild /restore` (no separate dotnet restore,
-      # which would try to SDK-restore the .NET Framework 4.8 FileConverter project and
-      # break the classic packages.config-based restore done above).
+      # WiX 5 is a pure SDK-style project (<Project Sdk="WixToolset.Sdk/5.0.2">).
+      # The classic MSBuild.exe from setup-msbuild cannot resolve this SDK, so we must
+      # use `dotnet build`. Restore is scoped to the wixproj only (not the whole sln),
+      # which avoids disturbing the classic packages.config restore already done for
+      # FileConverter.csproj.
+      - name: Restore Installer (scoped, wixproj only)
+        shell: pwsh
+        continue-on-error: true
+        run: dotnet restore Installer\Installer.wixproj
+
       - name: Build Installer (WiX MSI)
         shell: pwsh
         continue-on-error: true
         id: wix_build
-        run: msbuild Installer\Installer.wixproj /restore /p:Configuration=Release /p:Platform=x64 /m /v:minimal /nologo
+        run: dotnet build Installer\Installer.wixproj --no-restore -c Release -p:Platform=x64 -v minimal
 
       - name: Locate installer output
         id: installer_out
