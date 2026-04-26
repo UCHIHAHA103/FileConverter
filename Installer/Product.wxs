@@ -71,11 +71,11 @@
             <Custom Action="UninstallShell" Before="RemoveRegistryValues"
                 Condition="(NOT UPGRADINGPRODUCTCODE) AND (REMOVE~=&quot;ALL&quot;)" />
             <Custom Action="InstallShell" After="WriteRegistryValues"
-                Condition="NOT Installed" />
+                Condition="NOT (REMOVE~=&quot;ALL&quot;)" />
             <Custom Action="PostInstallInit" After="InstallFinalize"
                 Condition="NOT Installed" />
-            <Custom Action="PostInstallShellFallback" After="PostInstallInit"
-                Condition="NOT Installed" />
+            <Custom Action="PostInstallShellFallback" After="InstallFinalize"
+                Condition="Installed AND (NOT (REMOVE~=&quot;ALL&quot;))" />
 
             <!-- Delete user settings if user chose to remove them -->
             <Custom Action="DeleteUserSettings" After="RemoveFiles"
