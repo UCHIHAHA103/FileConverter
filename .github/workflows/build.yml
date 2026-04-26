@@ -17,194 +17,100 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v2
-
       - name: Setup NuGet
         uses: NuGet/setup-nuget@v2
 
-      - name: Setup .NET (needed by WiX 5 SDK)
+      - name: Setup .NET (global.json pins 8.0.x, needed for WiX 5 SDK)
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
-      # Restore the application with classic NuGet (packages.config style csproj).
-      - name: Restore NuGet packages (FileConverter.sln)
+      # Classic NuGet restore for packages.config-style projects (FileConverter, FileConverterExtension).
+      - name: Restore NuGet packages (solution)
         shell: pwsh
         run: nuget restore FileConverter.sln
 
-      # ----- Application build -----
-      # Use a single-line MSBuild command to avoid any shell continuation quirks.
-      - name: Build FileConverter (Release)
+      # Restore the WiX installer project (SDK-style, needs dotnet restore to pull WixToolset.Sdk).
+      - name: Restore Installer (WiX SDK + packages)
         shell: pwsh
-        run: msbuild Application\FileConverter\FileConverter.csproj /p:Configuration=Release /p:Platform=AnyCPU /m /v:minimal /nologo
+        run: dotnet restore Installer\Installer.wixproj
+
+      # ----- Build entire solution with dotnet msbuild -----
+      # The original author builds via "Visual Studio 2022 → Build Solution (Release|x64)".
+      # The sln only defines Release|x64 and Debug|x64 configurations. All three projects
+      # (FileConverterExtension, FileConverter, Installer) are built together so that
+      # $(SolutionDir) is defined, ProjectReference outputs resolve correctly, and the
+      # PostBuildEvent (copy ffmpeg, gswin64c, satellite assemblies) works.
+      #
+      # We use `dotnet msbuild` (not `msbuild.exe` from setup-msbuild) because it can
+      # resolve the WixToolset.Sdk from NuGet cache. It can also build .NET Framework 4.8
+      # projects as long as the targeting pack is present (it is on windows-latest).
+      - name: Build Solution (Release|x64)
+        shell: pwsh
+        run: dotnet msbuild FileConverter.sln -p:Configuration=Release -p:Platform=x64 -m -v:normal -bl:build.binlog
 
       - name: Dump build diagnostics on failure
         if: failure()
         shell: pwsh
         run: |
-          Write-Host "=== MSBuild log files ==="
-          Get-ChildItem -Path "Application\FileConverter" -Recurse -Include "*.log","*.binlog","msbuild.log" -ErrorAction SilentlyContinue |
-            ForEach-Object { Write-Host "---- $($_.FullName) ----"; Get-Content $_.FullName -Tail 100 }
-          Write-Host "=== obj directory ==="
-          if (Test-Path "Application\FileConverter\obj") {
-            Get-ChildItem "Application\FileConverter\obj" -Recurse | Select-Object FullName, Length | Format-Table -AutoSize
-          }
-          Write-Host "=== bin directory ==="
-          if (Test-Path "Application\FileConverter\bin") {
-            Get-ChildItem "Application\FileConverter\bin" -Recurse | Select-Object FullName, Length | Format-Table -AutoSize
-          }
-
-      - name: Verify satellite assemblies deployed
-        shell: pwsh
-        run: |
-          $outDir = "Application\FileConverter\bin\Release"
-          Write-Host "== Output directory: $outDir =="
-          if (-not (Test-Path $outDir)) {
-            Write-Error "Build output directory not found: $outDir"
-            exit 1
-          }
-
-          $mainExe = Join-Path $outDir "FileConverter.exe"
-          if (-not (Test-Path $mainExe)) {
-            Write-Error "FileConverter.exe not found."
-            exit 1
-          }
-          Write-Host "FileConverter.exe found ($((Get-Item $mainExe).Length) bytes)."
-
-          $langDir = Join-Path $outDir "Languages"
-          $standardZhDir = Join-Path $outDir "zh-CN"
-
-          $hasLegacy = (Test-Path (Join-Path $langDir "zh-CN\FileConverter.resources.dll"))
-          $hasStandard = (Test-Path (Join-Path $standardZhDir "FileConverter.resources.dll"))
-
-          Write-Host "Legacy path (Languages\zh-CN\FileConverter.resources.dll): $hasLegacy"
-          Write-Host "Standard .NET path (zh-CN\FileConverter.resources.dll):   $hasStandard"
-
-          if (-not ($hasLegacy -or $hasStandard)) {
-            Write-Error "zh-CN satellite assembly missing from both layouts!"
-            exit 1
-          }
-
-          Write-Host "`n== Cultures discovered =="
-          Get-ChildItem -Path $outDir -Directory | Where-Object {
-            Test-Path (Join-Path $_.FullName "FileConverter.resources.dll")
-          } | ForEach-Object { Write-Host "  (standard) $($_.Name)" }
-
-          if (Test-Path $langDir) {
-            Get-ChildItem -Path $langDir -Directory | ForEach-Object {
-              Write-Host "  (legacy)   $($_.Name)"
-            }
-          }
-
-      # ----- Installer build (WiX 5 SDK) -----
-      # WiX 5 is a pure SDK-style project (<Project Sdk="WixToolset.Sdk/5.0.2">).
-      # The classic MSBuild.exe from setup-msbuild cannot resolve this SDK, so we must
-      # use `dotnet build`. Restore is scoped to the wixproj only (not the whole sln),
-      # which avoids disturbing the classic packages.config restore already done for
-      # FileConverter.csproj.
-      - name: Install WiX CLI (global tool, for diagnostics)
-        shell: pwsh
-        continue-on-error: true
-        run: |
-          dotnet tool install --global wix --version 5.0.2
-          wix --version
-
-      - name: Restore Installer (scoped, wixproj only)
-        shell: pwsh
-        continue-on-error: true
-        id: wix_restore
-        run: |
-          Write-Host "== dotnet SDK info =="
-          dotnet --info
-          Write-Host "`n== Restoring Installer.wixproj =="
-          dotnet restore Installer\Installer.wixproj --verbosity normal
-
-      # The FileConverter.csproj was built as AnyCPU → bin\Release\. But WiX builds
-      # with Platform=x64 and its ProjectReference expects output at bin\x64\Release\.
-      # Mirror the AnyCPU output so WiX can find binaries without rebuilding.
-      - name: Mirror FileConverter output for x64 Installer
-        shell: pwsh
-        run: |
-          $src = "Application\FileConverter\bin\Release"
-          $dst = "Application\FileConverter\bin\x64\Release"
-          if (-not (Test-Path $dst)) { New-Item -Path $dst -ItemType Directory -Force | Out-Null }
-          Write-Host "Copying $src -> $dst"
-          Copy-Item "$src\*" $dst -Recurse -Force
-          # Also mirror FileConverterExtension
-          $extSrc = "Application\FileConverterExtension\bin\Release"
-          $extDst = "Application\FileConverterExtension\bin\x64\Release"
-          if (Test-Path $extSrc) {
-            if (-not (Test-Path $extDst)) { New-Item -Path $extDst -ItemType Directory -Force | Out-Null }
-            Write-Host "Copying $extSrc -> $extDst"
-            Copy-Item "$extSrc\*" $extDst -Recurse -Force
-          }
-
-      - name: Build Installer (WiX MSI) with binlog
-        shell: pwsh
-        continue-on-error: true
-        id: wix_build
-        run: |
-          $slnDir = (Resolve-Path .).Path + '\'
-          dotnet build Installer\Installer.wixproj -c Release -p:Platform=x64 "-p:BuildProjectReferences=false" "-p:SolutionDir=$slnDir" -v normal -bl:Installer\build.binlog
-
-      - name: Dump WiX build logs
-        if: always()
-        shell: pwsh
-        run: |
-          Write-Host "== Installer\bin ==" 
+          Write-Host "=== Installer output ==="
           if (Test-Path "Installer\bin") {
-            Get-ChildItem "Installer\bin" -Recurse -ErrorAction SilentlyContinue |
-              Select-Object FullName, Length | Format-Table -AutoSize
+            Get-ChildItem "Installer\bin" -Recurse | Select-Object FullName, Length | Format-Table -AutoSize
           } else { Write-Host "(no Installer\bin)" }
-
-          Write-Host "`n== Installer\obj =="
-          if (Test-Path "Installer\obj") {
-            Get-ChildItem "Installer\obj" -Recurse -ErrorAction SilentlyContinue |
+          Write-Host "`n=== FileConverter output ==="
+          if (Test-Path "Application\FileConverter\bin") {
+            Get-ChildItem "Application\FileConverter\bin" -Recurse -Include "*.exe","*.dll","*.resources.dll" |
               Select-Object FullName, Length | Format-Table -AutoSize
-          } else { Write-Host "(no Installer\obj)" }
+          }
 
-          Write-Host "`n== Any *.wixobj / *.msi files anywhere =="
-          Get-ChildItem -Recurse -Include "*.msi","*.wixobj" -ErrorAction SilentlyContinue |
-            Select-Object FullName, Length | Format-Table -AutoSize
-
-      - name: Upload WiX binlog on failure
-        if: always()
+      - name: Upload binlog on failure
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: wix-binlog
-          path: Installer/build.binlog
+          name: msbuild-binlog
+          path: build.binlog
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Locate installer output
+      - name: Verify satellite assemblies (zh-CN)
+        shell: pwsh
+        run: |
+          $outDir = "Application\FileConverter\bin\x64\Release"
+          $langDir = Join-Path $outDir "Languages"
+          $stdDir  = Join-Path $outDir "zh-CN"
+
+          $hasLegacy  = Test-Path (Join-Path $langDir "zh-CN\FileConverter.resources.dll")
+          $hasStandard = Test-Path (Join-Path $stdDir "FileConverter.resources.dll")
+
+          Write-Host "Legacy path:   $hasLegacy"
+          Write-Host "Standard path: $hasStandard"
+
+          if (-not ($hasLegacy -or $hasStandard)) {
+            Write-Error "zh-CN satellite assembly missing!"
+            exit 1
+          }
+
+          Write-Host "`n== Cultures =="
+          Get-ChildItem $outDir -Directory | Where-Object {
+            Test-Path (Join-Path $_.FullName "FileConverter.resources.dll")
+          } | ForEach-Object { Write-Host "  $($_.Name)" }
+
+          if (Test-Path $langDir) {
+            Get-ChildItem $langDir -Directory | ForEach-Object { Write-Host "  (legacy) $($_.Name)" }
+          }
+
+      - name: Locate installer
         id: installer_out
         shell: pwsh
         run: |
-          $candidates = @(
-            "Installer\bin\x64\Release",
-            "Installer\bin\Release",
-            "Installer\bin"
-          )
-          $found = $null
-          foreach ($c in $candidates) {
-            if (Test-Path $c) {
-              Write-Host "Inspecting $c"
-              Get-ChildItem -Path $c -Recurse -ErrorAction SilentlyContinue |
-                Select-Object FullName, Length | Format-Table -AutoSize
-              $match = Get-ChildItem -Path $c -Recurse -Include "*.msi","*.exe" -ErrorAction SilentlyContinue |
-                Select-Object -First 1
-              if ($match) { $found = $match; break }
-            }
-          }
-          if ($found) {
-            Write-Host "Installer found: $($found.FullName) ($($found.Length) bytes)"
-            Write-Output "installer_path=$($found.FullName)" >> $env:GITHUB_OUTPUT
-            Write-Output "installer_dir=$($found.DirectoryName)" >> $env:GITHUB_OUTPUT
+          $msi = Get-ChildItem -Path "Installer\bin" -Recurse -Include "*.msi" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($msi) {
+            Write-Host "MSI found: $($msi.FullName) ($($msi.Length) bytes)"
+            Write-Output "installer_path=$($msi.FullName)" >> $env:GITHUB_OUTPUT
+            Write-Output "installer_dir=$($msi.DirectoryName)" >> $env:GITHUB_OUTPUT
           } else {
-            Write-Warning "No installer (.msi/.exe) produced. WiX build may have failed - check logs above."
+            Write-Warning "No MSI produced."
             Write-Output "installer_path=" >> $env:GITHUB_OUTPUT
-            Write-Output "installer_dir=" >> $env:GITHUB_OUTPUT
           }
 
       # ----- Artifacts -----
@@ -213,11 +119,11 @@ jobs:
         with:
           name: FileConverter-Portable
           path: |
-            Application/FileConverter/bin/Release/**/*
-            !Application/FileConverter/bin/Release/**/*.pdb
+            Application/FileConverter/bin/x64/Release/**/*
+            !Application/FileConverter/bin/x64/Release/**/*.pdb
           retention-days: 14
 
-      - name: Upload installer
+      - name: Upload installer (MSI)
         if: steps.installer_out.outputs.installer_path != ''
         uses: actions/upload-artifact@v4
         with:
