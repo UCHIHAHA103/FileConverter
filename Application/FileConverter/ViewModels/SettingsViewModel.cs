@@ -482,6 +482,9 @@ namespace FileConverter.ViewModels
         {
             try
             {
+                // Record the current language before saving to detect changes.
+                var previousLanguage = Ioc.Default.GetRequiredService<ISettingsService>().Settings?.ApplicationLanguage;
+
                 // Compute parent folder names.
                 this.settings.ConversionPresets.Clear();
                 this.ComputePresetsParentFoldersNamesAndFillSettings(this.presetsRootFolder, new List<string>());
@@ -492,14 +495,24 @@ namespace FileConverter.ViewModels
 
                 INavigationService navigationService = Ioc.Default.GetRequiredService<INavigationService>();
                 navigationService.Close(Pages.Settings, false);
+
+                // If language changed, restart the application so the new culture
+                // takes effect on all WPF resource dictionaries and XAML views.
+                var newLanguage = this.settings.ApplicationLanguage;
+                bool languageChanged = (previousLanguage == null && newLanguage != null)
+                    || (previousLanguage != null && !previousLanguage.Equals(newLanguage));
+
+                if (languageChanged)
+                {
+                    Diagnostics.Debug.Log($"Language changed from '{previousLanguage?.Name}' to '{newLanguage?.Name}'. Restarting application...");
+                    var exePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
+                    System.Diagnostics.Process.Start(exePath, "--settings");
+                    System.Windows.Application.Current.Dispatcher.BeginInvoke(
+                        (Action)(() => System.Windows.Application.Current.Shutdown()));
+                }
             }
             catch (Exception exception)
             {
-                // Previously, any exception during save (including culture/language
-                // application errors) bubbled up and caused the Settings window to close
-                // silently without persisting changes - this is the root cause of the
-                // long-standing "language setting has no effect" reports (#750 #735 #609 etc.).
-                // We now log the error and keep the window open so the user can retry.
                 Diagnostics.Debug.LogError($"Failed to save settings: {exception.Message}");
                 System.Windows.MessageBox.Show(
                     $"Failed to save settings: {exception.Message}",

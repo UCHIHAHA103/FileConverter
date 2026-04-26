@@ -261,14 +261,22 @@ namespace FileConverter
             {
                 CultureInfo bestCandidate = null;
                 CultureInfo currentUICulture = System.Threading.Thread.CurrentThread.CurrentUICulture;
+
+                // Preferred default: Simplified Chinese (zh-CN).
+                CultureInfo preferredDefault = CultureInfo.GetCultureInfo("zh-CN");
+
                 foreach (CultureInfo culture in Helpers.GetSupportedCultures())
                 {
-                    if (culture.Equals(currentUICulture))
+                    if (culture.Name.Equals(preferredDefault.Name, System.StringComparison.OrdinalIgnoreCase))
                     {
                         bestCandidate = culture;
                         break;
                     }
-                    else if (culture.Equals(currentUICulture.Parent))
+                    else if (culture.Equals(currentUICulture))
+                    {
+                        bestCandidate = culture;
+                    }
+                    else if (bestCandidate == null && culture.Equals(currentUICulture.Parent))
                     {
                         bestCandidate = culture;
                     }
