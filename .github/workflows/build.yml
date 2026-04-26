@@ -3,13 +3,14 @@ name: Build
 on:
   push:
     branches: [ integration, master, main ]
+    tags: [ 'v*' ]
   pull_request:
     branches: [ integration, master, main ]
   workflow_dispatch:
 
 jobs:
   build:
-    name: Build FileConverter (Windows)
+    name: Build FileConverter + Installer (Windows)
     runs-on: windows-latest
 
     steps:
@@ -22,16 +23,25 @@ jobs:
       - name: Setup NuGet
         uses: NuGet/setup-nuget@v2
 
-      - name: Restore NuGet packages
+      - name: Setup .NET (for WiX 5 SDK)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore NuGet packages (FileConverter.sln)
         run: nuget restore FileConverter.sln
         shell: pwsh
 
-      - name: Build FileConverter (Release x64)
+      - name: Restore Installer (dotnet - WiX SDK uses .NET)
+        run: dotnet restore Installer\Installer.wixproj
+        shell: pwsh
+
+      # ----- Application build -----
+      - name: Build FileConverter (Release)
         run: |
           msbuild Application\FileConverter\FileConverter.csproj `
             /p:Configuration=Release `
             /p:Platform="AnyCPU" `
-            /p:RestorePackagesConfig=true `
             /m `
             /v:minimal
         shell: pwsh
@@ -46,12 +56,12 @@ jobs:
             exit 1
           }
 
-          $mainDll = Join-Path $outDir "FileConverter.exe"
-          if (-not (Test-Path $mainDll)) {
+          $mainExe = Join-Path $outDir "FileConverter.exe"
+          if (-not (Test-Path $mainExe)) {
             Write-Error "FileConverter.exe not found."
             exit 1
           }
-          Write-Host "FileConverter.exe found."
+          Write-Host "FileConverter.exe found ($((Get-Item $mainExe).Length) bytes)."
 
           $langDir = Join-Path $outDir "Languages"
           $standardZhDir = Join-Path $outDir "zh-CN"
@@ -60,14 +70,14 @@ jobs:
           $hasStandard = (Test-Path (Join-Path $standardZhDir "FileConverter.resources.dll"))
 
           Write-Host "Legacy path (Languages\zh-CN\FileConverter.resources.dll): $hasLegacy"
-          Write-Host "Standard .NET path (zh-CN\FileConverter.resources.dll):     $hasStandard"
+          Write-Host "Standard .NET path (zh-CN\FileConverter.resources.dll):   $hasStandard"
 
           if (-not ($hasLegacy -or $hasStandard)) {
             Write-Error "zh-CN satellite assembly missing from both layouts!"
             exit 1
           }
 
-          Write-Host "== Languages discovered =="
+          Write-Host "`n== Languages discovered =="
           Get-ChildItem -Path $outDir -Directory | Where-Object {
             Test-Path (Join-Path $_.FullName "FileConverter.resources.dll")
           } | ForEach-Object { Write-Host "  (standard) $($_.Name)" }
@@ -78,11 +88,69 @@ jobs:
             }
           }
 
-      - name: Upload build artifacts
+      # ----- Installer build (WiX 5) -----
+      - name: Build Installer (WiX MSI, unsigned)
+        run: |
+          msbuild Installer\Installer.wixproj `
+            /p:Configuration=Release `
+            /p:Platform=x64 `
+            /m `
+            /v:minimal
+        shell: pwsh
+        continue-on-error: true
+        id: wix_build
+
+      - name: Locate installer output
+        id: installer_out
+        shell: pwsh
+        run: |
+          $candidates = @(
+            "Installer\bin\x64\Release",
+            "Installer\bin\Release",
+            "Installer\bin"
+          )
+          $found = $null
+          foreach ($c in $candidates) {
+            if (Test-Path $c) {
+              $msi = Get-ChildItem -Path $c -Recurse -Include "*.msi","*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+              if ($msi) { $found = $msi; break }
+            }
+          }
+          if ($found) {
+            Write-Host "Installer found: $($found.FullName) ($($found.Length) bytes)"
+            Write-Output "installer_path=$($found.FullName)" >> $env:GITHUB_OUTPUT
+            Write-Output "installer_dir=$($found.DirectoryName)" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Warning "No installer (.msi/.exe) produced. WiX build may have failed - check logs above."
+            Write-Output "installer_path=" >> $env:GITHUB_OUTPUT
+            Write-Output "installer_dir=" >> $env:GITHUB_OUTPUT
+          }
+
+      # ----- Artifacts -----
+      - name: Upload portable build
         uses: actions/upload-artifact@v4
         with:
-          name: FileConverter-Release-x64
+          name: FileConverter-Portable
           path: |
             Application/FileConverter/bin/Release/**/*
             !Application/FileConverter/bin/Release/**/*.pdb
           retention-days: 14
+
+      - name: Upload installer
+        if: steps.installer_out.outputs.installer_path != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: FileConverter-Installer
+          path: ${{ steps.installer_out.outputs.installer_dir }}/*.msi
+          retention-days: 14
+
+      # ----- Auto release on tag push -----
+      - name: Create GitHub Release (on tag)
+        if: startsWith(github.ref, 'refs/tags/v') && steps.installer_out.outputs.installer_path != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ steps.installer_out.outputs.installer_path }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false
