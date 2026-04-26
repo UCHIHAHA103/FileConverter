@@ -1,0 +1,8 @@
+{
+  "$comment": "Lock the .NET SDK used to build Installer/Installer.wixproj. WiX 5.0.2 has been validated against .NET SDK 8.x. The windows-latest GitHub runner ships .NET 10 preview which causes 'MSB4276: default SDK resolver failed to resolve WixToolset.Sdk' because it resolves SDKs against '%ProgramFiles%/dotnet/sdk/10.0.201/Sdks/...' instead of NuGet cache. Pinning to 8.x makes resolution work.",
+  "sdk": {
+    "version": "8.0.0",
+    "rollForward": "latestFeature",
+    "allowPrerelease": false
+  }
+}

@@ -125,11 +125,7 @@ jobs:
         continue-on-error: true
         id: wix_build
         run: |
-          dotnet build Installer\Installer.wixproj --no-restore `
-            -c Release `
-            -p:Platform=x64 `
-            -v normal `
-            -bl:Installer\build.binlog
+          dotnet build Installer\Installer.wixproj -c Release -p:Platform=x64 -v normal -bl:Installer\build.binlog
 
       - name: Dump WiX build logs
         if: always()
