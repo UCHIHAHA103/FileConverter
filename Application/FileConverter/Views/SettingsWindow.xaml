@@ -370,6 +370,9 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
                     <Label Grid.Row="0" Grid.Column="0" Content="{x:Static project:Resources.Language}" HorizontalAlignment="Right" Margin="0,0,5,0"/>
@@ -410,6 +413,15 @@
                             </DataTemplate>
                         </ComboBox.ItemTemplate>
                     </ComboBox>
+
+                    <Label Grid.Row="7" Grid.Column="0" Content="最小化到系统托盘 / Minimize to tray" HorizontalAlignment="Right" Margin="0,0,5,0"/>
+                    <CheckBox Grid.Row="7" Grid.Column="1" x:Name="MinimizeToTrayCheckBox" IsChecked="{Binding Settings.MinimizeToTray, Mode=TwoWay}" Margin="0,5,0,5" />
+
+                    <Label Grid.Row="8" Grid.Column="0" Content="转换完成弹出通知 / Notify on complete" HorizontalAlignment="Right" Margin="0,0,5,0"/>
+                    <CheckBox Grid.Row="8" Grid.Column="1" IsChecked="{Binding Settings.NotifyOnComplete, Mode=TwoWay}" Margin="0,5,0,5" />
+
+                    <Label Grid.Row="9" Grid.Column="0" Content="转换完成提示音 / Sound on complete" HorizontalAlignment="Right" Margin="0,0,5,0"/>
+                    <CheckBox Grid.Row="9" Grid.Column="1" IsChecked="{Binding Settings.PlaySoundOnComplete, Mode=TwoWay}" Margin="0,5,0,5" />
                 </Grid>
             </TabItem>
 

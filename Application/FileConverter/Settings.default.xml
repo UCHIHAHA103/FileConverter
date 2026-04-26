@@ -2385,4 +2385,7 @@
     </ConversionPreset>
     <CheckUpgradeAtStartup>true</CheckUpgradeAtStartup>
     <CopyFilesInClipboardAfterConversion>false</CopyFilesInClipboardAfterConversion>
+    <MinimizeToTray>false</MinimizeToTray>
+    <NotifyOnComplete>true</NotifyOnComplete>
+    <PlaySoundOnComplete>true</PlaySoundOnComplete>
 </Settings>

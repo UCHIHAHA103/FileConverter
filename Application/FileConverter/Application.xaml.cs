@@ -52,6 +52,7 @@ namespace FileConverter
         private bool silent;
         private bool showSettings;
         private bool showHelp;
+        private System.Windows.Forms.NotifyIcon trayIcon;
 
         [DllImport("kernel32.dll")]
         static extern bool AttachConsole(uint dwProcessId);
@@ -116,9 +117,16 @@ namespace FileConverter
 
             if (this.needToRunConversionThread)
             {
-                if (!this.silent)
+                ISettingsService traySettingsService = Ioc.Default.GetRequiredService<ISettingsService>();
+                bool minimizeToTray = traySettingsService.Settings?.MinimizeToTray == true;
+
+                if (!this.silent && !minimizeToTray)
                 {
                     navigationService.Show(Pages.Main);
+                }
+                else if (minimizeToTray)
+                {
+                    this.InitializeTrayIcon();
                 }
 
                 IConversionService conversionService = Ioc.Default.GetRequiredService<IConversionService>();
@@ -129,6 +137,12 @@ namespace FileConverter
                 if (this.silent)
                 {
                     this.cancelAutoExit = false;
+                }
+
+                // Start tray progress update timer if in tray mode.
+                if (minimizeToTray)
+                {
+                    this.StartTrayProgressUpdater(conversionService);
                 }
             }
 
@@ -146,6 +160,8 @@ namespace FileConverter
         protected override void OnExit(ExitEventArgs e)
         {
             base.OnExit(e);
+
+            this.DisposeTrayIcon();
 
             Debug.Log("Exit application.");
 
@@ -483,6 +499,44 @@ namespace FileConverter
 
             ISettingsService settingsService = Ioc.Default.GetRequiredService<ISettingsService>();
 
+            // Show tray notification if enabled.
+            if (settingsService.Settings.NotifyOnComplete && this.trayIcon != null)
+            {
+                string title = e.AllConversionsSucceed ? "✅ Conversion Complete / 转换完成" : "⚠️ Conversion Finished with Errors / 转换完成（有错误）";
+                string body = $"{conversionService.ConversionJobs.Count} file(s) processed.";
+                this.trayIcon.ShowBalloonTip(5000, title, body, 
+                    e.AllConversionsSucceed ? System.Windows.Forms.ToolTipIcon.Info : System.Windows.Forms.ToolTipIcon.Warning);
+            }
+            else if (settingsService.Settings.NotifyOnComplete && settingsService.Settings.MinimizeToTray)
+            {
+                // Even without tray icon active, show notification if setting is on.
+                this.Dispatcher.BeginInvoke((System.Action)(() =>
+                {
+                    string msg = e.AllConversionsSucceed
+                        ? "✅ All conversions completed successfully!\n所有转换已成功完成！"
+                        : "⚠️ Conversions finished with errors.\n转换完成，但有错误。";
+                    System.Windows.MessageBox.Show(msg, "File Converter",
+                        System.Windows.MessageBoxButton.OK,
+                        e.AllConversionsSucceed ? System.Windows.MessageBoxImage.Information : System.Windows.MessageBoxImage.Warning);
+                }));
+            }
+
+            // Play sound if enabled.
+            if (settingsService.Settings.PlaySoundOnComplete)
+            {
+                try
+                {
+                    System.Media.SystemSounds.Asterisk.Play();
+                }
+                catch (System.Exception ex)
+                {
+                    Debug.Log($"Failed to play completion sound: {ex.Message}");
+                }
+            }
+
+            // Dispose tray icon.
+            this.DisposeTrayIcon();
+
             if (!settingsService.Settings.ExitApplicationWhenConversionsFinished)
             {
                 return;
@@ -518,6 +572,147 @@ namespace FileConverter
                 }
 
                 Application.AskForShutdown();
+            }
+        }
+
+        private void InitializeTrayIcon()
+        {
+            try
+            {
+                // Use the application icon for the tray.
+                string exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
+                System.Drawing.Icon appIcon = System.Drawing.Icon.ExtractAssociatedIcon(exePath);
+
+                this.trayIcon = new System.Windows.Forms.NotifyIcon
+                {
+                    Icon = appIcon,
+                    Text = "File Converter — Converting...\n转换中...",
+                    Visible = true,
+                };
+
+                // Right-click menu: Show window / Exit.
+                var contextMenu = new System.Windows.Forms.ContextMenuStrip();
+                contextMenu.Items.Add("Show Window / 显示窗口", null, (s, e) =>
+                {
+                    this.Dispatcher.BeginInvoke((System.Action)(() =>
+                    {
+                        INavigationService nav = Ioc.Default.GetRequiredService<INavigationService>();
+                        nav.Show(Pages.Main);
+                    }));
+                });
+                contextMenu.Items.Add("Exit / 退出", null, (s, e) =>
+                {
+                    this.DisposeTrayIcon();
+                    Application.AskForShutdown();
+                });
+                this.trayIcon.ContextMenuStrip = contextMenu;
+
+                // Double-click to show window.
+                this.trayIcon.DoubleClick += (s, e) =>
+                {
+                    this.Dispatcher.BeginInvoke((System.Action)(() =>
+                    {
+                        INavigationService nav = Ioc.Default.GetRequiredService<INavigationService>();
+                        nav.Show(Pages.Main);
+                    }));
+                };
+
+                Debug.Log("Tray icon initialized (minimize to tray mode).");
+            }
+            catch (System.Exception ex)
+            {
+                Debug.Log($"Failed to initialize tray icon: {ex.Message}");
+            }
+        }
+
+        private void StartTrayProgressUpdater(IConversionService conversionService)
+        {
+            Thread progressThread = Helpers.InstantiateThread("TrayProgressThread", () =>
+            {
+                while (true)
+                {
+                    try
+                    {
+                        var jobs = conversionService.ConversionJobs;
+                        if (jobs == null || jobs.Count == 0)
+                        {
+                            break;
+                        }
+
+                        int totalJobs = jobs.Count;
+                        int doneJobs = 0;
+                        int failedJobs = 0;
+                        string currentJobName = string.Empty;
+                        float currentJobProgress = 0f;
+                        float totalProgress = 0f;
+
+                        for (int i = 0; i < totalJobs; i++)
+                        {
+                            var job = jobs[i];
+                            if (job.State == ConversionJobs.ConversionState.Done)
+                            {
+                                doneJobs++;
+                                totalProgress += 1f;
+                            }
+                            else if (job.State == ConversionJobs.ConversionState.Failed)
+                            {
+                                failedJobs++;
+                                totalProgress += 1f;
+                            }
+                            else if (job.State == ConversionJobs.ConversionState.InProgress)
+                            {
+                                currentJobName = System.IO.Path.GetFileName(job.InputFilePath);
+                                currentJobProgress = job.Progress;
+                                totalProgress += job.Progress;
+                            }
+                        }
+
+                        bool allFinished = (doneJobs + failedJobs) >= totalJobs;
+
+                        int overallPercent = totalJobs > 0 ? (int)(totalProgress / totalJobs * 100) : 0;
+                        int currentPercent = (int)(currentJobProgress * 100);
+
+                        // Update tray tooltip (max 63 chars for NotifyIcon.Text).
+                        string tooltip = $"File Converter: {overallPercent}% ({doneJobs}/{totalJobs})";
+                        if (!string.IsNullOrEmpty(currentJobName))
+                        {
+                            string shortName = currentJobName.Length > 20 ? currentJobName.Substring(0, 17) + "..." : currentJobName;
+                            tooltip += $"\n{shortName}: {currentPercent}%";
+                        }
+
+                        if (tooltip.Length > 63)
+                        {
+                            tooltip = tooltip.Substring(0, 63);
+                        }
+
+                        if (this.trayIcon != null)
+                        {
+                            this.trayIcon.Text = tooltip;
+                        }
+
+                        if (allFinished)
+                        {
+                            break;
+                        }
+                    }
+                    catch
+                    {
+                        break;
+                    }
+
+                    Thread.Sleep(500);
+                }
+            });
+            progressThread.Start();
+        }
+
+        private void DisposeTrayIcon()
+        {
+            if (this.trayIcon != null)
+            {
+                this.trayIcon.Visible = false;
+                this.trayIcon.Dispose();
+                this.trayIcon = null;
             }
         }
 
