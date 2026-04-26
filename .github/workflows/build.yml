@@ -23,28 +23,37 @@ jobs:
       - name: Setup NuGet
         uses: NuGet/setup-nuget@v2
 
-      - name: Setup .NET (for WiX 5 SDK)
+      - name: Setup .NET (needed by WiX 5 SDK)
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
+      # Restore the application with classic NuGet (packages.config style csproj).
       - name: Restore NuGet packages (FileConverter.sln)
+        shell: pwsh
         run: nuget restore FileConverter.sln
-        shell: pwsh
-
-      - name: Restore Installer (dotnet - WiX SDK uses .NET)
-        run: dotnet restore Installer\Installer.wixproj
-        shell: pwsh
 
       # ----- Application build -----
+      # Use a single-line MSBuild command to avoid any shell continuation quirks.
       - name: Build FileConverter (Release)
-        run: |
-          msbuild Application\FileConverter\FileConverter.csproj `
-            /p:Configuration=Release `
-            /p:Platform="AnyCPU" `
-            /m `
-            /v:minimal
         shell: pwsh
+        run: msbuild Application\FileConverter\FileConverter.csproj /p:Configuration=Release /p:Platform=AnyCPU /m /v:minimal /nologo
+
+      - name: Dump build diagnostics on failure
+        if: failure()
+        shell: pwsh
+        run: |
+          Write-Host "=== MSBuild log files ==="
+          Get-ChildItem -Path "Application\FileConverter" -Recurse -Include "*.log","*.binlog","msbuild.log" -ErrorAction SilentlyContinue |
+            ForEach-Object { Write-Host "---- $($_.FullName) ----"; Get-Content $_.FullName -Tail 100 }
+          Write-Host "=== obj directory ==="
+          if (Test-Path "Application\FileConverter\obj") {
+            Get-ChildItem "Application\FileConverter\obj" -Recurse | Select-Object FullName, Length | Format-Table -AutoSize
+          }
+          Write-Host "=== bin directory ==="
+          if (Test-Path "Application\FileConverter\bin") {
+            Get-ChildItem "Application\FileConverter\bin" -Recurse | Select-Object FullName, Length | Format-Table -AutoSize
+          }
 
       - name: Verify satellite assemblies deployed
         shell: pwsh
@@ -77,7 +86,7 @@ jobs:
             exit 1
           }
 
-          Write-Host "`n== Languages discovered =="
+          Write-Host "`n== Cultures discovered =="
           Get-ChildItem -Path $outDir -Directory | Where-Object {
             Test-Path (Join-Path $_.FullName "FileConverter.resources.dll")
           } | ForEach-Object { Write-Host "  (standard) $($_.Name)" }
@@ -88,17 +97,15 @@ jobs:
             }
           }
 
-      # ----- Installer build (WiX 5) -----
-      - name: Build Installer (WiX MSI, unsigned)
-        run: |
-          msbuild Installer\Installer.wixproj `
-            /p:Configuration=Release `
-            /p:Platform=x64 `
-            /m `
-            /v:minimal
+      # ----- Installer build (WiX 5 SDK) -----
+      # WiX 5 is an SDK-style project. Use `msbuild /restore` (no separate dotnet restore,
+      # which would try to SDK-restore the .NET Framework 4.8 FileConverter project and
+      # break the classic packages.config-based restore done above).
+      - name: Build Installer (WiX MSI)
         shell: pwsh
         continue-on-error: true
         id: wix_build
+        run: msbuild Installer\Installer.wixproj /restore /p:Configuration=Release /p:Platform=x64 /m /v:minimal /nologo
 
       - name: Locate installer output
         id: installer_out
@@ -112,8 +119,12 @@ jobs:
           $found = $null
           foreach ($c in $candidates) {
             if (Test-Path $c) {
-              $msi = Get-ChildItem -Path $c -Recurse -Include "*.msi","*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-              if ($msi) { $found = $msi; break }
+              Write-Host "Inspecting $c"
+              Get-ChildItem -Path $c -Recurse -ErrorAction SilentlyContinue |
+                Select-Object FullName, Length | Format-Table -AutoSize
+              $match = Get-ChildItem -Path $c -Recurse -Include "*.msi","*.exe" -ErrorAction SilentlyContinue |
+                Select-Object -First 1
+              if ($match) { $found = $match; break }
             }
           }
           if ($found) {
