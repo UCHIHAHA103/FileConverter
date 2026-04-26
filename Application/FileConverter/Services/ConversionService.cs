@@ -16,6 +16,7 @@ namespace FileConverter.Services
     public class ConversionService : ObservableObject, IConversionService
     {
         private readonly List<ConversionJob> conversionJobs = new List<ConversionJob>();
+        private readonly object jobsLock = new object();
 
         private readonly int numberOfConversionThread = 1;
 
@@ -52,8 +53,41 @@ namespace FileConverter.Services
 
         public void RegisterConversionJob(ConversionJob conversionJob)
         {
-            this.conversionJobs.Add(conversionJob);
+            lock (this.jobsLock)
+            {
+                this.conversionJobs.Add(conversionJob);
+            }
+
             this.OnPropertyChanged(nameof(this.ConversionJobs));
+        }
+
+        /// <summary>
+        /// Remove a conversion job from the queue. Only jobs that are not currently
+        /// in progress can be removed.
+        /// </summary>
+        public bool RemoveConversionJob(ConversionJob conversionJob)
+        {
+            if (conversionJob == null)
+            {
+                return false;
+            }
+
+            if (conversionJob.State == ConversionState.InProgress)
+            {
+                // Cancel first, then remove.
+                conversionJob.Cancel();
+            }
+
+            lock (this.jobsLock)
+            {
+                bool removed = this.conversionJobs.Remove(conversionJob);
+                if (removed)
+                {
+                    Debug.Log($"Removed job from queue: {conversionJob.InputFilePath}");
+                }
+
+                return removed;
+            }
         }
 
         public void ConvertFilesAsync()
@@ -65,9 +99,12 @@ namespace FileConverter.Services
         private void ConvertFiles()
         {
             // Prepare conversions.
-            for (int index = 0; index < this.ConversionJobs.Count; index++)
+            lock (this.jobsLock)
             {
-                this.ConversionJobs[index].PrepareConversion();
+                for (int index = 0; index < this.ConversionJobs.Count; index++)
+                {
+                    this.ConversionJobs[index].PrepareConversion();
+                }
             }
 
             System.Collections.Specialized.StringCollection files = new System.Collections.Specialized.StringCollection();
@@ -78,14 +115,18 @@ namespace FileConverter.Services
                 // Compute conversion flags.
                 ConversionFlags conversionFlags = ConversionFlags.None;
                 bool allJobAreFinished = true;
-                for (int jobIndex = 0; jobIndex < this.conversionJobs.Count; jobIndex++)
-                {
-                    ConversionJob conversionJob = this.conversionJobs[jobIndex];
-                    allJobAreFinished &= !(conversionJob.State == ConversionState.Ready || conversionJob.State == ConversionState.InProgress);
 
-                    if (conversionJob.State == ConversionState.InProgress)
+                lock (this.jobsLock)
+                {
+                    for (int jobIndex = 0; jobIndex < this.conversionJobs.Count; jobIndex++)
                     {
-                        conversionFlags |= conversionJob.StateFlags;
+                        ConversionJob conversionJob = this.conversionJobs[jobIndex];
+                        allJobAreFinished &= !(conversionJob.State == ConversionState.Ready || conversionJob.State == ConversionState.InProgress);
+
+                        if (conversionJob.State == ConversionState.InProgress)
+                        {
+                            conversionFlags |= conversionJob.StateFlags;
+                        }
                     }
                 }
 
@@ -95,41 +136,44 @@ namespace FileConverter.Services
                 }
 
                 // Start job if possible.
-                for (int jobIndex = 0; jobIndex < this.conversionJobs.Count; jobIndex++)
+                lock (this.jobsLock)
                 {
-                    ConversionJob conversionJob = this.conversionJobs[jobIndex];
-                    if (conversionJob.State == ConversionState.Ready && conversionJob.CanStartConversion(conversionFlags))
+                    for (int jobIndex = 0; jobIndex < this.conversionJobs.Count; jobIndex++)
                     {
-                        // Find a thread to execute the job.
-                        Thread jobThread = null;
-                        for (int threadIndex = 0; threadIndex < jobThreads.Length; threadIndex++)
+                        ConversionJob conversionJob = this.conversionJobs[jobIndex];
+                        if (conversionJob.State == ConversionState.Ready && conversionJob.CanStartConversion(conversionFlags))
                         {
-                            Thread thread = jobThreads[threadIndex];
-                            if (thread == null || !thread.IsAlive)
+                            // Find a thread to execute the job.
+                            Thread jobThread = null;
+                            for (int threadIndex = 0; threadIndex < jobThreads.Length; threadIndex++)
                             {
-                                jobThread = Helpers.InstantiateThread(conversionJob.GetType().Name, this.ExecuteConversionJob);
-                                jobThreads[threadIndex] = jobThread;
-                                break;
+                                Thread thread = jobThreads[threadIndex];
+                                if (thread == null || !thread.IsAlive)
+                                {
+                                    jobThread = Helpers.InstantiateThread(conversionJob.GetType().Name, this.ExecuteConversionJob);
+                                    jobThreads[threadIndex] = jobThread;
+                                    break;
+                                }
                             }
-                        }
 
-                        if (jobThread != null)
-                        {
-                            jobThread.Start(conversionJob);
-
-                            while (conversionJob.State == ConversionState.Ready)
+                            if (jobThread != null)
                             {
-                                Debug.Log("Wait the launch of the conversion thread before launching any other thread.");
-                                Thread.Sleep(20);
+                                jobThread.Start(conversionJob);
+
+                                while (conversionJob.State == ConversionState.Ready)
+                                {
+                                    Debug.Log("Wait the launch of the conversion thread before launching any other thread.");
+                                    Thread.Sleep(20);
+                                }
                             }
-                        }
 
-                        if (!files.Contains(conversionJob.OutputFilePath))
-                        {
-                            files.Add(conversionJob.OutputFilePath);
-                        }
+                            if (!files.Contains(conversionJob.OutputFilePath))
+                            {
+                                files.Add(conversionJob.OutputFilePath);
+                            }
 
-                        break;
+                            break;
+                        }
                     }
                 }
 
