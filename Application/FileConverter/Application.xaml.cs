@@ -512,6 +512,23 @@ namespace FileConverter
         }
 
         /// <summary>
+        /// Exit the process cleanly without going through WPF's OnExit path.
+        ///
+        /// OnExit calls Ioc.Default.GetRequiredService&lt;IUpgradeService&gt;(), which
+        /// throws InvalidOperationException when RegisterServices() was never
+        /// called (as is the case for --register-shell-extension and friends).
+        /// That unhandled exception surfaces as CLR exit code 0xE0434352
+        /// (-532462766) in the MSI log and is confusing to operators.
+        ///
+        /// Using Environment.Exit bypasses WPF shutdown entirely, producing a
+        /// clean exit code 0.
+        /// </summary>
+        private static void ExitEarlyProcess()
+        {
+            Environment.Exit(0);
+        }
+
+        /// <summary>
         /// Parse command-line args early (before WPF theme/DI init) and handle
         /// non-UI commands that should run without full application setup.
         /// Returns true if the app should exit immediately.
@@ -541,7 +558,7 @@ namespace FileConverter
                             }
                         }
 
-                        Application.Current.Shutdown();
+                        ExitEarlyProcess();
                         return true;
 
                     case "unregister-shell-extension":
@@ -554,12 +571,12 @@ namespace FileConverter
                             }
                         }
 
-                        Application.Current.Shutdown();
+                        ExitEarlyProcess();
                         return true;
 
                     case "version":
                         Console.WriteLine("2.2.7");
-                        Application.Current.Shutdown();
+                        ExitEarlyProcess();
                         return true;
                 }
             }
