@@ -2333,59 +2333,6 @@
         <Settings Key="FFMPEGCustomCommand" Value="-c:v libx264 -preset medium -crf 23 -vf &quot;subtitles='(input)'&quot; -c:a aac -b:a 128k" />
         <OutputFileNameTemplate>(p)(f) (hardsub)</OutputFileNameTemplate>
     </ConversionPreset>
-    <ConversionPreset Name="To Webp (lossless)" OutputType="Webp" IsDefaultSettings="true">
-        <InputTypes>xcf</InputTypes>
-        <InputTypes>arw</InputTypes>
-        <InputTypes>avif</InputTypes>
-        <InputTypes>bmp</InputTypes>
-        <InputTypes>cr2</InputTypes>
-        <InputTypes>dds</InputTypes>
-        <InputTypes>dng</InputTypes>
-        <InputTypes>exr</InputTypes>
-        <InputTypes>heic</InputTypes>
-        <InputTypes>ico</InputTypes>
-        <InputTypes>jfif</InputTypes>
-        <InputTypes>jpg</InputTypes>
-        <InputTypes>jpeg</InputTypes>
-        <InputTypes>nef</InputTypes>
-        <InputTypes>png</InputTypes>
-        <InputTypes>psd</InputTypes>
-        <InputTypes>raf</InputTypes>
-        <InputTypes>svg</InputTypes>
-        <InputTypes>tga</InputTypes>
-        <InputTypes>tif</InputTypes>
-        <InputTypes>tiff</InputTypes>
-        <InputTypes>webp</InputTypes>
-        <InputPostConversionAction>None</InputPostConversionAction>
-        <Settings Key="ImageQuality" Value="100" />
-        <Settings Key="ImageScale" Value="1" />
-        <Settings Key="ImageRotation" Value="0" />
-        <Settings Key="ImageClampSizePowerOf2" Value="False" />
-        <Settings Key="ImageMaximumSize" Value="0" />
-        <OutputFileNameTemplate>(p)(f)</OutputFileNameTemplate>
-    </ConversionPreset>
-    <ConversionPreset Name="Images to Video/To Mp4 (24fps)" OutputType="Mp4" IsDefaultSettings="true">
-        <InputTypes>png</InputTypes>
-        <InputTypes>jpg</InputTypes>
-        <InputTypes>jpeg</InputTypes>
-        <InputTypes>bmp</InputTypes>
-        <InputTypes>tif</InputTypes>
-        <InputTypes>tiff</InputTypes>
-        <InputTypes>webp</InputTypes>
-        <InputPostConversionAction>None</InputPostConversionAction>
-        <Settings Key="EnableAudio" Value="False" />
-        <Settings Key="VideoQuality" Value="30" />
-        <Settings Key="VideoEncodingSpeed" Value="Medium" />
-        <Settings Key="VideoScale" Value="1" />
-        <Settings Key="VideoRotation" Value="0" />
-        <Settings Key="AudioBitrate" Value="128" />
-        <Settings Key="EnableFFMPEGCustomCommand" Value="True" />
-        <Settings Key="FFMPEGCustomCommand" Value="-framerate 24 -c:v libx264 -preset medium -crf 23 -pix_fmt yuv420p" />
-        <OutputFileNameTemplate>(p)(f)_slideshow</OutputFileNameTemplate>
-    </ConversionPreset>
     <CheckUpgradeAtStartup>true</CheckUpgradeAtStartup>
     <CopyFilesInClipboardAfterConversion>false</CopyFilesInClipboardAfterConversion>
-    <MinimizeToTray>false</MinimizeToTray>
-    <NotifyOnComplete>true</NotifyOnComplete>
-    <PlaySoundOnComplete>true</PlaySoundOnComplete>
 </Settings>

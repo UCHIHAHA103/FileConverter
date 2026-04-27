@@ -86,28 +86,12 @@ namespace FileConverter.Services
                         userSettings.SerializationVersion = Settings.Version;
                     }
 
-                    // Instead of removing all default presets and re-adding them (which resets
-                    // user modifications to default presets), only remove default presets that
-                    // no longer exist in the new defaults. This way, user customizations to
-                    // existing default presets are preserved, and only genuinely new presets
-                    // from the update get added. (#697)
-                    if (userSettings.ConversionPresets != null && defaultSettings?.ConversionPresets != null)
+                    // Remove default settings.
+                    if (userSettings.ConversionPresets != null)
                     {
-                        // Build a set of default preset names from the new version.
-                        var newDefaultNames = new System.Collections.Generic.HashSet<string>();
-                        foreach (var dp in defaultSettings.ConversionPresets)
-                        {
-                            if (dp.IsDefaultSettings)
-                            {
-                                newDefaultNames.Add(dp.FullName);
-                            }
-                        }
-
-                        // Remove old default presets that no longer exist in the new defaults.
                         for (int index = userSettings.ConversionPresets.Count - 1; index >= 0; index--)
                         {
-                            if (userSettings.ConversionPresets[index].IsDefaultSettings &&
-                                !newDefaultNames.Contains(userSettings.ConversionPresets[index].FullName))
+                            if (userSettings.ConversionPresets[index].IsDefaultSettings)
                             {
                                 userSettings.ConversionPresets.RemoveAt(index);
                             }

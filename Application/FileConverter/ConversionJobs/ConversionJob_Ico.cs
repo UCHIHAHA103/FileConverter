@@ -38,11 +38,8 @@ namespace FileConverter.ConversionJobs
             this.intermediateFilePath = PathHelpers.GenerateUniquePath(tempPath + fileName + ".png");
 
             // Convert input in png file to send it to ffmpeg for the ico conversion.
-            // Do NOT clamp to power-of-2 sizes — this causes non-square images to be
-            // resized to incorrect dimensions (e.g. 128x128 instead of 256x170). (#170 #150)
-            // Instead, just limit the maximum dimension to 256px while keeping aspect ratio.
             ConversionPreset intermediatePreset = new ConversionPreset("To compatible image", OutputType.Png, this.ConversionPreset.InputTypes.ToArray());
-            intermediatePreset.SetSettingsValue(ConversionPreset.ConversionSettingKeys.ImageClampSizePowerOf2, "False");
+            intermediatePreset.SetSettingsValue(ConversionPreset.ConversionSettingKeys.ImageClampSizePowerOf2, "True");
             intermediatePreset.SetSettingsValue(ConversionPreset.ConversionSettingKeys.ImageMaximumSize, "256");
             this.pngConversionJob = ConversionJobFactory.Create(intermediatePreset, this.InputFilePath);
             this.pngConversionJob.PrepareConversion(this.intermediateFilePath);

@@ -23,9 +23,6 @@ namespace FileConverter
         private int maximumNumberOfSimultaneousConversions;
         private bool copyFilesInClipboardAfterConversion = false;
         private Helpers.HardwareAccelerationMode hardwareAccelerationMode = Helpers.HardwareAccelerationMode.Off;
-        private bool minimizeToTray = false;
-        private bool notifyOnComplete = true;
-        private bool playSoundOnComplete = true;
 
         public ConversionPreset GetPresetFromName(string presetName)
         {
@@ -256,28 +253,6 @@ namespace FileConverter
                 this.OnPropertyChanged();
             }
         }
-
-        [XmlElement]
-        public bool MinimizeToTray
-        {
-            get => this.minimizeToTray;
-            set { this.minimizeToTray = value; this.OnPropertyChanged(); }
-        }
-
-        [XmlElement]
-        public bool NotifyOnComplete
-        {
-            get => this.notifyOnComplete;
-            set { this.notifyOnComplete = value; this.OnPropertyChanged(); }
-        }
-
-        [XmlElement]
-        public bool PlaySoundOnComplete
-        {
-            get => this.playSoundOnComplete;
-            set { this.playSoundOnComplete = value; this.OnPropertyChanged(); }
-        }
-
         public void OnDeserializationComplete()
         {
             this.DurationBetweenEndOfConversionsAndApplicationExit = System.Math.Max(0, System.Math.Min(10, this.DurationBetweenEndOfConversionsAndApplicationExit));

@@ -64,22 +64,8 @@
                     Command="{Binding CancelCommand}" ToolTip="{x:Static project:Resources.CancelJobTooltip}">
                 <Image Source="/FileConverter;component/Resources/CancelIcon.png" Width="48" Height="48" Style="{StaticResource EnableDisableImageStyle}" />
             </Button>
-
-            <!-- Done state: open file / show in folder buttons -->
-            <StackPanel Grid.Column="1" Orientation="Vertical" VerticalAlignment="Center"
-                        Visibility="{Binding State, ConverterParameter=|Done|Collapsed, Converter={StaticResource EnumEqualsToVisibility}}">
-                <Button Margin="2" Height="26" Padding="4,2" ToolTip="Open output file / 打开输出文件"
-                        Command="{Binding DataContext.OpenOutputFileCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                        CommandParameter="{Binding}">
-                    <TextBlock FontSize="11" Text="📄 Open" />
-                </Button>
-                <Button Margin="2" Height="26" Padding="4,2" ToolTip="Show in folder / 在文件夹中显示"
-                        Command="{Binding DataContext.OpenOutputFolderCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                        CommandParameter="{Binding}">
-                    <TextBlock FontSize="11" Text="📁 Locate" />
-                </Button>
-            </StackPanel>
-
+            <Image Margin="3" Grid.Column="1" Source="/FileConverter;component/Resources/SuccessIcon.png" Width="48" Height="48" 
+                   Visibility="{Binding State, ConverterParameter=|Done|Collapsed, Converter={StaticResource EnumEqualsToVisibility}}"/>
             <Image Margin="3" Grid.Column="1" Source="/FileConverter;component/Resources/FailIcon.png" Width="48" Height="48" 
                    Visibility="{Binding State, ConverterParameter=|Failed|Collapsed, Converter={StaticResource EnumEqualsToVisibility}}"/>
         </Grid>

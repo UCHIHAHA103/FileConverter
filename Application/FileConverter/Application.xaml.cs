@@ -42,17 +42,15 @@ namespace FileConverter
                                                       {
                                                           Major = 2,
                                                           Minor = 2,
-                                                          Patch = 6,
+                                                          Patch = 7,
                                                       };
 
         private bool needToRunConversionThread;
         private bool cancelAutoExit;
         private bool isSessionEnding;
         private bool verbose;
-        private bool silent;
         private bool showSettings;
         private bool showHelp;
-        private System.Windows.Forms.NotifyIcon trayIcon;
 
         [DllImport("kernel32.dll")]
         static extern bool AttachConsole(uint dwProcessId);
@@ -99,17 +97,6 @@ namespace FileConverter
             // in the installed layout, causing all UI strings to fall back to English.
             AppDomain.CurrentDomain.AssemblyResolve += this.OnAssemblyResolve;
 
-            // Handle non-UI commands early, BEFORE any WPF initialization (theme, DI, etc).
-            // This is critical because --register-shell-extension runs as SYSTEM via MSI
-            // deferred CA, where WPF/HKCU operations may fail silently.
-            if (this.HandleEarlyCommandLineArgs())
-            {
-                return;
-            }
-
-            // Apply dark theme if Windows is in dark mode.
-            this.ApplySystemTheme();
-
             this.RegisterServices();
 
             this.Initialize();
@@ -125,33 +112,11 @@ namespace FileConverter
 
             if (this.needToRunConversionThread)
             {
-                ISettingsService traySettingsService = Ioc.Default.GetRequiredService<ISettingsService>();
-                bool minimizeToTray = traySettingsService.Settings?.MinimizeToTray == true;
-
-                if (!this.silent && !minimizeToTray)
-                {
-                    navigationService.Show(Pages.Main);
-                }
-                else if (minimizeToTray)
-                {
-                    this.InitializeTrayIcon();
-                }
+                navigationService.Show(Pages.Main);
 
                 IConversionService conversionService = Ioc.Default.GetRequiredService<IConversionService>();
                 conversionService.ConversionJobsTerminated += this.ConversionService_ConversionJobsTerminated;
                 conversionService.ConvertFilesAsync();
-
-                // In silent mode, force auto-exit when all conversions finish.
-                if (this.silent)
-                {
-                    this.cancelAutoExit = false;
-                }
-
-                // Start tray progress update timer if in tray mode.
-                if (minimizeToTray)
-                {
-                    this.StartTrayProgressUpdater(conversionService);
-                }
             }
 
             if (this.showSettings)
@@ -168,8 +133,6 @@ namespace FileConverter
         protected override void OnExit(ExitEventArgs e)
         {
             base.OnExit(e);
-
-            this.DisposeTrayIcon();
 
             Debug.Log("Exit application.");
 
@@ -317,25 +280,6 @@ namespace FileConverter
                             Application.AskForShutdown();
                             return;
 
-                        case "remove-user-data":
-                            // Called by the MSI uninstaller to delete user settings.
-                            try
-                            {
-                                string userDataPath = FileConverterExtension.PathHelpers.GetUserDataFolderPath;
-                                if (System.IO.Directory.Exists(userDataPath))
-                                {
-                                    System.IO.Directory.Delete(userDataPath, true);
-                                    Debug.Log($"User data folder deleted: {userDataPath}");
-                                }
-                            }
-                            catch (System.Exception ex)
-                            {
-                                Debug.Log($"Failed to delete user data: {ex.Message}");
-                            }
-
-                            Application.AskForShutdown();
-                            return;
-
                         case "register-shell-extension":
                             {
                                 if (index >= args.Length - 1)
@@ -434,11 +378,6 @@ namespace FileConverter
 
                             break;
 
-                        case "silent":
-                            // Hidden mode: run conversions without showing the main window (#117).
-                            this.silent = true;
-                            break;
-
                         default:
                             Debug.LogError($"Unknown application argument: '--{parameterTitle}'.");
                             return;
@@ -526,44 +465,6 @@ namespace FileConverter
 
             ISettingsService settingsService = Ioc.Default.GetRequiredService<ISettingsService>();
 
-            // Show tray notification if enabled.
-            if (settingsService.Settings.NotifyOnComplete && this.trayIcon != null)
-            {
-                string title = e.AllConversionsSucceed ? "✅ Conversion Complete / 转换完成" : "⚠️ Conversion Finished with Errors / 转换完成（有错误）";
-                string body = $"{conversionService.ConversionJobs.Count} file(s) processed.";
-                this.trayIcon.ShowBalloonTip(5000, title, body, 
-                    e.AllConversionsSucceed ? System.Windows.Forms.ToolTipIcon.Info : System.Windows.Forms.ToolTipIcon.Warning);
-            }
-            else if (settingsService.Settings.NotifyOnComplete && settingsService.Settings.MinimizeToTray)
-            {
-                // Even without tray icon active, show notification if setting is on.
-                this.Dispatcher.BeginInvoke((System.Action)(() =>
-                {
-                    string msg = e.AllConversionsSucceed
-                        ? "✅ All conversions completed successfully!\n所有转换已成功完成！"
-                        : "⚠️ Conversions finished with errors.\n转换完成，但有错误。";
-                    System.Windows.MessageBox.Show(msg, "File Converter",
-                        System.Windows.MessageBoxButton.OK,
-                        e.AllConversionsSucceed ? System.Windows.MessageBoxImage.Information : System.Windows.MessageBoxImage.Warning);
-                }));
-            }
-
-            // Play sound if enabled.
-            if (settingsService.Settings.PlaySoundOnComplete)
-            {
-                try
-                {
-                    System.Media.SystemSounds.Asterisk.Play();
-                }
-                catch (System.Exception ex)
-                {
-                    Debug.Log($"Failed to play completion sound: {ex.Message}");
-                }
-            }
-
-            // Dispose tray icon.
-            this.DisposeTrayIcon();
-
             if (!settingsService.Settings.ExitApplicationWhenConversionsFinished)
             {
                 return;
@@ -601,277 +502,6 @@ namespace FileConverter
                 Application.AskForShutdown();
             }
         }
-
-        /// <summary>
-        /// Exit the process cleanly without going through WPF's OnExit path.
-        ///
-        /// OnExit calls Ioc.Default.GetRequiredService&lt;IUpgradeService&gt;(), which
-        /// throws InvalidOperationException when RegisterServices() was never
-        /// called (as is the case for --register-shell-extension and friends).
-        /// That unhandled exception surfaces as CLR exit code 0xE0434352
-        /// (-532462766) in the MSI log and is confusing to operators.
-        ///
-        /// Using Environment.Exit bypasses WPF shutdown entirely, producing a
-        /// clean exit code 0.
-        /// </summary>
-        private static void ExitEarlyProcess()
-        {
-            Environment.Exit(0);
-        }
-
-        /// <summary>
-        /// Parse command-line args early (before WPF theme/DI init) and handle
-        /// non-UI commands that should run without full application setup.
-        /// Returns true if the app should exit immediately.
-        /// </summary>
-        private bool HandleEarlyCommandLineArgs()
-        {
-            string[] args = Environment.GetCommandLineArgs();
-            for (int index = 1; index < args.Length; index++)
-            {
-                string argument = args[index];
-                if (string.IsNullOrEmpty(argument) || !argument.StartsWith("--"))
-                {
-                    continue;
-                }
-
-                string parameterTitle = argument.Substring(2).ToLowerInvariant();
-
-                switch (parameterTitle)
-                {
-                    case "register-shell-extension":
-                        if (index < args.Length - 1)
-                        {
-                            string shellExtensionPath = args[index + 1];
-                            if (!Helpers.RegisterShellExtension(shellExtensionPath))
-                            {
-                                Debug.LogError(errorCode: 0x0C, $"Failed to register shell extension {shellExtensionPath}.");
-                            }
-                        }
-
-                        ExitEarlyProcess();
-                        return true;
-
-                    case "unregister-shell-extension":
-                        if (index < args.Length - 1)
-                        {
-                            string shellExtensionPath = args[index + 1];
-                            if (!Helpers.UnregisterExtension(shellExtensionPath))
-                            {
-                                Debug.LogError(errorCode: 0x0E, $"Failed to unregister shell extension {shellExtensionPath}.");
-                            }
-                        }
-
-                        ExitEarlyProcess();
-                        return true;
-
-                    case "remove-user-data":
-                        try
-                        {
-                            string userDataPath = FileConverterExtension.PathHelpers.GetUserDataFolderPath;
-                            if (System.IO.Directory.Exists(userDataPath))
-                            {
-                                System.IO.Directory.Delete(userDataPath, true);
-                            }
-                        }
-                        catch
-                        {
-                        }
-
-                        ExitEarlyProcess();
-                        return true;
-
-                    case "version":
-                        Console.WriteLine("2.2.6");
-                        ExitEarlyProcess();
-                        return true;
-                }
-            }
-
-            return false;
-        }
-
-        private void InitializeTrayIcon()
-        {
-            try
-            {
-                // Use the application icon for the tray.
-                string exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
-                System.Drawing.Icon appIcon = System.Drawing.Icon.ExtractAssociatedIcon(exePath);
-
-                this.trayIcon = new System.Windows.Forms.NotifyIcon
-                {
-                    Icon = appIcon,
-                    Text = "File Converter — Converting...\n转换中...",
-                    Visible = true,
-                };
-
-                // Right-click menu: Show window / Exit.
-                var contextMenu = new System.Windows.Forms.ContextMenuStrip();
-                contextMenu.Items.Add("Show Window / 显示窗口", null, (s, e) =>
-                {
-                    this.Dispatcher.BeginInvoke((System.Action)(() =>
-                    {
-                        INavigationService nav = Ioc.Default.GetRequiredService<INavigationService>();
-                        nav.Show(Pages.Main);
-                    }));
-                });
-                contextMenu.Items.Add("Exit / 退出", null, (s, e) =>
-                {
-                    this.DisposeTrayIcon();
-                    Application.AskForShutdown();
-                });
-                this.trayIcon.ContextMenuStrip = contextMenu;
-
-                // Double-click to show window.
-                this.trayIcon.DoubleClick += (s, e) =>
-                {
-                    this.Dispatcher.BeginInvoke((System.Action)(() =>
-                    {
-                        INavigationService nav = Ioc.Default.GetRequiredService<INavigationService>();
-                        nav.Show(Pages.Main);
-                    }));
-                };
-
-                Debug.Log("Tray icon initialized (minimize to tray mode).");
-            }
-            catch (System.Exception ex)
-            {
-                Debug.Log($"Failed to initialize tray icon: {ex.Message}");
-            }
-        }
-
-        private void StartTrayProgressUpdater(IConversionService conversionService)
-        {
-            Thread progressThread = Helpers.InstantiateThread("TrayProgressThread", () =>
-            {
-                while (true)
-                {
-                    try
-                    {
-                        var jobs = conversionService.ConversionJobs;
-                        if (jobs == null || jobs.Count == 0)
-                        {
-                            break;
-                        }
-
-                        int totalJobs = jobs.Count;
-                        int doneJobs = 0;
-                        int failedJobs = 0;
-                        string currentJobName = string.Empty;
-                        float currentJobProgress = 0f;
-                        float totalProgress = 0f;
-
-                        for (int i = 0; i < totalJobs; i++)
-                        {
-                            var job = jobs[i];
-                            if (job.State == ConversionJobs.ConversionState.Done)
-                            {
-                                doneJobs++;
-                                totalProgress += 1f;
-                            }
-                            else if (job.State == ConversionJobs.ConversionState.Failed)
-                            {
-                                failedJobs++;
-                                totalProgress += 1f;
-                            }
-                            else if (job.State == ConversionJobs.ConversionState.InProgress)
-                            {
-                                currentJobName = System.IO.Path.GetFileName(job.InputFilePath);
-                                currentJobProgress = job.Progress;
-                                totalProgress += job.Progress;
-                            }
-                        }
-
-                        bool allFinished = (doneJobs + failedJobs) >= totalJobs;
-
-                        int overallPercent = totalJobs > 0 ? (int)(totalProgress / totalJobs * 100) : 0;
-                        int currentPercent = (int)(currentJobProgress * 100);
-
-                        // Update tray tooltip (max 63 chars for NotifyIcon.Text).
-                        string tooltip = $"File Converter: {overallPercent}% ({doneJobs}/{totalJobs})";
-                        if (!string.IsNullOrEmpty(currentJobName))
-                        {
-                            string shortName = currentJobName.Length > 20 ? currentJobName.Substring(0, 17) + "..." : currentJobName;
-                            tooltip += $"\n{shortName}: {currentPercent}%";
-                        }
-
-                        if (tooltip.Length > 63)
-                        {
-                            tooltip = tooltip.Substring(0, 63);
-                        }
-
-                        if (this.trayIcon != null)
-                        {
-                            this.trayIcon.Text = tooltip;
-                        }
-
-                        if (allFinished)
-                        {
-                            break;
-                        }
-                    }
-                    catch
-                    {
-                        break;
-                    }
-
-                    Thread.Sleep(500);
-                }
-            });
-            progressThread.Start();
-        }
-
-        private void DisposeTrayIcon()
-        {
-            if (this.trayIcon != null)
-            {
-                this.trayIcon.Visible = false;
-                this.trayIcon.Dispose();
-                this.trayIcon = null;
-            }
-        }
-
-        private void ApplySystemTheme()
-        {
-            try
-            {
-                // Check Windows registry for dark mode preference.
-                using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
-                    @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"))
-                {
-                    if (key != null)
-                    {
-                        object value = key.GetValue("AppsUseLightTheme");
-                        if (value is int intValue && intValue == 0)
-                        {
-                            // Dark mode is active — swap the Colors.xaml resource dictionary.
-                            var mergedDicts = this.Resources.MergedDictionaries;
-                            for (int i = 0; i < mergedDicts.Count; i++)
-                            {
-                                var dict = mergedDicts[i];
-                                if (dict.Source != null && dict.Source.OriginalString.Contains("Colors.xaml")
-                                    && !dict.Source.OriginalString.Contains("Dark"))
-                                {
-                                    mergedDicts[i] = new ResourceDictionary
-                                    {
-                                        Source = new Uri("Views/Resources/DarkColors.xaml", UriKind.Relative)
-                                    };
-
-                                    Debug.Log("Dark theme applied (Windows dark mode detected).");
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.Log($"Failed to detect system theme: {ex.Message}");
-            }
-        }
-
         private Assembly OnAssemblyResolve(object sender, ResolveEventArgs args)
         {
             // ResourceManager requests satellite assemblies with names like
@@ -904,10 +534,9 @@ namespace FileConverter
                     return Assembly.LoadFrom(satellitePath);
                 }
             }
-            catch (Exception ex)
+            catch
             {
-                // Log but do not break the resolve chain.
-                System.Diagnostics.Trace.WriteLine($"AssemblyResolve failed for '{args.Name}': {ex.Message}");
+                // Swallow – do not break the resolve chain.
             }
 
             return null;
