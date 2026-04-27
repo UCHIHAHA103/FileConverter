@@ -1,5 +1,23 @@
 # Change Log
 
+## Version 2.2.6 (UCHIHAHA103 fork hotfix)
+
+> **后续清理：修掉 v2.2.5 安装日志里的 CLR 未处理异常（功能无影响，但清理日志）**
+
+- **Fixes: `FileConverter.exe --register-shell-extension` exits with CLR
+  exit code `0xE0434352` (-532462766) after doing its job correctly**.
+  After `RegAsm.Register64` successfully writes HKCR, `HandleEarlyCommandLineArgs`
+  called `Application.Current.Shutdown()`, which then ran WPF's `OnExit`.
+  `OnExit` unconditionally does `Ioc.Default.GetRequiredService<IUpgradeService>()`,
+  which throws `InvalidOperationException` because no services were ever
+  registered in the early CLI path. The unhandled exception surfaced as the
+  confusing CLR error code above in MSI verbose logs.
+  Fix: use `Environment.Exit(0)` to terminate the process directly, bypassing
+  WPF's shutdown / `OnExit` pipeline entirely. The MSI log now shows
+  `InstallShell.Return value 1.` with no "actual error code" line.
+- No installer / shell-registration behavior changes vs v2.2.5 — this release
+  is purely a log-cleanliness / correctness fix.
+
 ## Version 2.2.5 (UCHIHAHA103 fork hotfix)
 
 > **修复 v2.2.4 安装时出现 "There is a problem with this Windows Installer package"（错误 1722）**

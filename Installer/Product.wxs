@@ -3,7 +3,7 @@
      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui"
      xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
 
-    <Package Name="File Converter" Language="1033" Version="2.2.5" Manufacturer="Adrien Allard"
+    <Package Name="File Converter" Language="1033" Version="2.2.6" Manufacturer="Adrien Allard"
              UpgradeCode="e3ca717b-a897-418a-bbef-5c7e35c76e4b" InstallerVersion="500">
         <Icon Id="icon.ico" SourceFile="..\Resources\Icons\ApplicationIcon.ico" />
         <Property Id="ARPPRODUCTICON" Value="icon.ico" />
