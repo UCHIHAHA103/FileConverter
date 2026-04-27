@@ -97,6 +97,13 @@ namespace FileConverter.ConversionJobs
                         readSettings.FrameIndex = 0;
                         break;
 
+                    case ".svg":
+                        // SVG is a vector format; set high density for sharp rasterization.
+                        // Without this, SVG renders at a low default resolution (#129).
+                        readSettings.Density = new Density(300, 300);
+                        readSettings.BackgroundColor = MagickColors.Transparent;
+                        break;
+
                     default:
                         break;
                 }
@@ -214,6 +221,34 @@ namespace FileConverter.ConversionJobs
             }
 
             Debug.Log($"Convert image (output: {this.OutputFilePath}).");
+
+            // Auto-convert CMYK color space to sRGB for screen display (#42).
+            if (image.ColorSpace == ColorSpace.CMYK)
+            {
+                Debug.Log("Converting CMYK color space to sRGB.");
+                image.ColorSpace = ColorSpace.sRGB;
+            }
+
+            // For formats that don't support transparency (JPG, PDF), composite
+            // onto a white background to avoid black areas (#129 SVG alpha).
+            if (this.ConversionPreset.OutputType == OutputType.Jpg ||
+                this.ConversionPreset.OutputType == OutputType.Pdf)
+            {
+                if (image.HasAlpha)
+                {
+                    Debug.Log("Flattening alpha channel onto white background.");
+                    image.BackgroundColor = MagickColors.White;
+                    image.Alpha(AlphaOption.Remove);
+                }
+            }
+
+            // For SVG input, set a high density before rasterization for sharp output.
+            string inputExt = System.IO.Path.GetExtension(this.InputFilePath).ToLowerInvariant();
+            if (inputExt == ".svg" && image.Density.X < 150)
+            {
+                Debug.Log("SVG input detected with low density, quality may be reduced.");
+            }
+
             switch (this.ConversionPreset.OutputType)
             {
                 case OutputType.Avif:
