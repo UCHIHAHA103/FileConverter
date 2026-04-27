@@ -73,23 +73,30 @@ namespace FileConverterExtension
 
         protected override bool CanShowMenu()
         {
-            this.RefreshExtensionCacheFromSelectedItems();
-
-            PresetReference[] presets = this.PresetReferences;
-            if (presets == null)
+            try
             {
-                return false;
-            }
+                this.RefreshExtensionCacheFromSelectedItems();
 
-            foreach (string extension in this.extensionCache)
-            {
-                foreach (PresetReference presetReference in presets)
+                PresetReference[] presets = this.PresetReferences;
+                if (presets == null)
                 {
-                    if (presetReference?.InputTypes != null && presetReference.InputTypes.Contains(extension))
+                    return false;
+                }
+
+                foreach (string extension in this.extensionCache)
+                {
+                    foreach (PresetReference presetReference in presets)
                     {
-                        return true;
+                        if (presetReference?.InputTypes != null && presetReference.InputTypes.Contains(extension))
+                        {
+                            return true;
+                        }
                     }
                 }
+            }
+            catch
+            {
+                // Never let an exception from preset evaluation crash the shell extension.
             }
 
             return false;
@@ -97,96 +104,107 @@ namespace FileConverterExtension
 
         protected override ContextMenuStrip CreateMenu()
         {
-            this.RefreshPresetList();
-
-            bool displayPresetIcons = this.DisplayPresetIcons;
-
             ContextMenuStrip menu = new ContextMenuStrip();
 
-            ToolStripMenuItem fileConverterItem = new ToolStripMenuItem
+            try
             {
-                Text = "File Converter",
-                Image = new Icon(Properties.Resources.ApplicationIcon, SystemInformation.SmallIconSize).ToBitmap(),
-            };
+                this.RefreshPresetList();
 
-            int menuItemIndex = 0;
-            foreach (MenuEntry menuEntry in this.menuEntries)
-            {
-                menuItemIndex++;
-                
-                ToolStripMenuItem root = fileConverterItem;
-                if (menuEntry.PresetReference.Folders != null)
+                bool displayPresetIcons = this.DisplayPresetIcons;
+
+                ToolStripMenuItem fileConverterItem = new ToolStripMenuItem
                 {
-                    foreach (string folder in menuEntry.PresetReference.Folders)
-                    {
-                        ToolStripItem[] folderItems = root.DropDownItems.Find(folder, false);
-                        if (folderItems.Length == 0)
-                        {
-                            ToolStripMenuItem folderItem = new ToolStripMenuItem
-                            {
-                                Name = folder,
-                                Text = folder,
-                                Image = new Icon(Properties.Resources.FolderIcon, SystemInformation.SmallIconSize).ToBitmap(),
-                            };
+                    Text = "File Converter",
+                    Image = new Icon(Properties.Resources.ApplicationIcon, SystemInformation.SmallIconSize).ToBitmap(),
+                };
 
-                            root.DropDownItems.Add(folderItem);
-                            root = folderItem;
-                        }
-                        else
+                int menuItemIndex = 0;
+                foreach (MenuEntry menuEntry in this.menuEntries)
+                {
+                    try
+                    {
+                        menuItemIndex++;
+                    
+                        ToolStripMenuItem root = fileConverterItem;
+                        if (menuEntry.PresetReference.Folders != null)
                         {
-                            root = folderItems[0] as ToolStripMenuItem;
+                            foreach (string folder in menuEntry.PresetReference.Folders)
+                            {
+                                ToolStripItem[] folderItems = root.DropDownItems.Find(folder, false);
+                                if (folderItems.Length == 0)
+                                {
+                                    ToolStripMenuItem folderItem = new ToolStripMenuItem
+                                    {
+                                        Name = folder,
+                                        Text = folder,
+                                        Image = new Icon(Properties.Resources.FolderIcon, SystemInformation.SmallIconSize).ToBitmap(),
+                                    };
+
+                                    root.DropDownItems.Add(folderItem);
+                                    root = folderItem;
+                                }
+                                else
+                                {
+                                    root = folderItems[0] as ToolStripMenuItem;
+                                }
+
+                                if (root == null)
+                                {
+                                    break;
+                                }
+                            }
                         }
 
                         if (root == null)
                         {
-                            break;
+                            root = fileConverterItem;
                         }
+
+                        string uniqueSuffix = new string('\u200B', menuItemIndex);
+                        string displayText = menuEntry.PresetReference.Name + uniqueSuffix;
+
+                        ToolStripMenuItem subItem = new ToolStripMenuItem
+                        {
+                            Text = displayText,
+                            Enabled = menuEntry.Enabled
+                        };
+
+                        if (displayPresetIcons)
+                        {
+                            subItem.Image = new Icon(Properties.Resources.PresetIcon, SystemInformation.SmallIconSize).ToBitmap();
+                        }
+
+                        root.DropDownItems.Add(subItem);
+                        subItem.Click += (sender, args) => this.ConvertFiles(menuEntry.PresetReference.FullName);
+                    }
+                    catch
+                    {
+                        // Skip this preset — other presets remain available.
                     }
                 }
 
-                if (root == null)
+                if (this.menuEntries.Count > 0)
                 {
-                    // Fallback when something went wrong during folder creation.
-                    root = fileConverterItem;
+                    fileConverterItem.DropDownItems.Add(new ToolStripSeparator());
                 }
 
-                // Make each menu item text unique using invisible zero-width spaces
-                // This prevents Windows Forms menu collision while being completely invisible to users
-                string uniqueSuffix = new string('\u200B', menuItemIndex); // Zero-Width Space characters
-                string displayText = menuEntry.PresetReference.Name + uniqueSuffix;
-
-                ToolStripMenuItem subItem = new ToolStripMenuItem
                 {
-                    Text = displayText,
-                    Enabled = menuEntry.Enabled
-                };
+                    ToolStripMenuItem subItem = new ToolStripMenuItem
+                    {
+                        Text = "Configure presets...",
+                        Image = new Icon(Properties.Resources.SettingsIcon, SystemInformation.SmallIconSize).ToBitmap(),
+                    };
 
-                if (displayPresetIcons)
-                {
-                    subItem.Image = new Icon(Properties.Resources.PresetIcon, SystemInformation.SmallIconSize).ToBitmap();
+                    fileConverterItem.DropDownItems.Add(subItem);
+                    subItem.Click += (sender, args) => this.OpenSettings();
                 }
 
-                root.DropDownItems.Add(subItem);
-                subItem.Click += (sender, args) => this.ConvertFiles(menuEntry.PresetReference.FullName);
+                menu.Items.Add(fileConverterItem);
             }
-
-            if (this.menuEntries.Count > 0)
+            catch
             {
-                fileConverterItem.DropDownItems.Add(new ToolStripSeparator());
+                // Last resort: return an empty menu instead of crashing the shell extension.
             }
-
-            {
-                ToolStripMenuItem subItem = new ToolStripMenuItem
-                {
-                    Text = "Configure presets...",
-                    Image = new Icon(Properties.Resources.SettingsIcon, SystemInformation.SmallIconSize).ToBitmap(),
-                };
-
-                fileConverterItem.DropDownItems.Add(subItem);
-                subItem.Click += (sender, args) => this.OpenSettings();
-            }
-
-            menu.Items.Add(fileConverterItem);
 
             return menu;
         }
@@ -260,7 +278,6 @@ namespace FileConverterExtension
                 try
                 {
                     XmlHelpers.LoadFromFile("Settings", PathHelpers.UserSettingsFilePath, out this.presetReferences);
-                    return;
                 }
                 catch
                 {
@@ -268,13 +285,35 @@ namespace FileConverterExtension
                 }
             }
 
-            try
+            if (this.presetReferences == null)
             {
-                XmlHelpers.LoadFromFile("Settings", PathHelpers.DefaultSettingsFilePath, out this.presetReferences);
+                try
+                {
+                    XmlHelpers.LoadFromFile("Settings", PathHelpers.DefaultSettingsFilePath, out this.presetReferences);
+                }
+                catch
+                {
+                    // Can't handle this error in the explorer extension.
+                }
             }
-            catch
+
+            // Sanitize: remove any preset with null/empty InputTypes or null FullName
+            // so downstream code never encounters them.
+            if (this.presetReferences != null)
             {
-                // Can't handle this error in the explorer extension.
+                var valid = new System.Collections.Generic.List<PresetReference>();
+                foreach (var preset in this.presetReferences)
+                {
+                    if (preset != null
+                        && !string.IsNullOrEmpty(preset.FullName)
+                        && preset.InputTypes != null
+                        && preset.InputTypes.Length > 0)
+                    {
+                        valid.Add(preset);
+                    }
+                }
+
+                this.presetReferences = valid.ToArray();
             }
         }
 
