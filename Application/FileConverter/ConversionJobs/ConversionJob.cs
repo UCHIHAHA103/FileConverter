@@ -101,7 +101,14 @@ namespace FileConverter.ConversionJobs
             {
                 this.state = value;
                 this.NotifyPropertyChanged();
-                Application.Current.Dispatcher.Invoke(() => this.cancelCommand?.NotifyCanExecuteChanged());
+                try
+                {
+                    Application.Current?.Dispatcher?.BeginInvoke((Action)(() => this.cancelCommand?.NotifyCanExecuteChanged()));
+                }
+                catch
+                {
+                    // Application may be shutting down.
+                }
             }
         }
 

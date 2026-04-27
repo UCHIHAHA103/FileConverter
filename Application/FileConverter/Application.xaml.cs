@@ -42,17 +42,17 @@ namespace FileConverter
                                                       {
                                                           Major = 2,
                                                           Minor = 2,
-                                                          Patch = 6,
+                                                          Patch = 7,
                                                       };
 
         private bool needToRunConversionThread;
-        private bool cancelAutoExit;
+        private volatile bool cancelAutoExit;
         private bool isSessionEnding;
         private bool verbose;
         private bool silent;
         private bool showSettings;
         private bool showHelp;
-        private System.Windows.Forms.NotifyIcon trayIcon;
+        private volatile System.Windows.Forms.NotifyIcon trayIcon;
 
         [DllImport("kernel32.dll")]
         static extern bool AttachConsole(uint dwProcessId);
@@ -67,7 +67,10 @@ namespace FileConverter
         {
             get
             {
-                return new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
+                using (var identity = WindowsIdentity.GetCurrent())
+                {
+                    return new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator);
+                }
             }
         }
 
@@ -173,41 +176,57 @@ namespace FileConverter
 
             Debug.Log("Exit application.");
 
-            IUpgradeService upgradeService = Ioc.Default.GetRequiredService<IUpgradeService>();
-
-            if (!this.isSessionEnding && upgradeService.UpgradeVersionDescription != null && upgradeService.UpgradeVersionDescription.NeedToUpgrade)
+            try
             {
-                Debug.Log($"A new version of file converter has been found: {upgradeService.UpgradeVersionDescription.LatestVersion}.");
+                IUpgradeService upgradeService = Ioc.Default.GetRequiredService<IUpgradeService>();
 
-                if (string.IsNullOrEmpty(upgradeService.UpgradeVersionDescription.InstallerPath))
+                if (!this.isSessionEnding && upgradeService.UpgradeVersionDescription != null && upgradeService.UpgradeVersionDescription.NeedToUpgrade)
                 {
-                    Debug.LogError("Invalid installer path.");
-                }
-                else
-                {
-                    Debug.Log("Wait for the end of the installer download.");
-                    while (upgradeService.UpgradeVersionDescription.InstallerDownloadInProgress)
+                    Debug.Log($"A new version of file converter has been found: {upgradeService.UpgradeVersionDescription.LatestVersion}.");
+
+                    if (string.IsNullOrEmpty(upgradeService.UpgradeVersionDescription.InstallerPath))
                     {
-                        Thread.Sleep(1000);
+                        Debug.LogError("Invalid installer path.");
                     }
-
-                    string installerPath = upgradeService.UpgradeVersionDescription.InstallerPath;
-                    if (!System.IO.File.Exists(installerPath))
+                    else
                     {
-                        Debug.LogError($"Can't find upgrade installer ({installerPath}). Try to restart the application.");
-                        return;
+                        Debug.Log("Wait for the end of the installer download.");
+                        int maxWaitSeconds = 60;
+                        while (upgradeService.UpgradeVersionDescription.InstallerDownloadInProgress && maxWaitSeconds > 0)
+                        {
+                            Thread.Sleep(1000);
+                            maxWaitSeconds--;
+                        }
+
+                        if (maxWaitSeconds <= 0)
+                        {
+                            Debug.LogError("Timed out waiting for installer download.");
+                        }
+                        else
+                        {
+                            string installerPath = upgradeService.UpgradeVersionDescription.InstallerPath;
+                            if (!System.IO.File.Exists(installerPath))
+                            {
+                                Debug.LogError($"Can't find upgrade installer ({installerPath}). Try to restart the application.");
+                            }
+                            else
+                            {
+                                Debug.Log($"Start file converter upgrade from version {ApplicationVersion} to {upgradeService.UpgradeVersionDescription.LatestVersion}.");
+
+                                ProcessStartInfo startInfo = new System.Diagnostics.ProcessStartInfo(installerPath) { UseShellExecute = true, };
+
+                                Debug.Log($"Start upgrade process: {System.IO.Path.GetFileName(startInfo.FileName)}{startInfo.Arguments}.");
+                                Process process = new System.Diagnostics.Process { StartInfo = startInfo };
+
+                                process.Start();
+                            }
+                        }
                     }
-
-                    // Start process.
-                    Debug.Log($"Start file converter upgrade from version {ApplicationVersion} to {upgradeService.UpgradeVersionDescription.LatestVersion}.");
-
-                    ProcessStartInfo startInfo = new System.Diagnostics.ProcessStartInfo(installerPath) { UseShellExecute = true, };
-
-                    Debug.Log($"Start upgrade process: {System.IO.Path.GetFileName(startInfo.FileName)}{startInfo.Arguments}.");
-                    Process process = new System.Diagnostics.Process { StartInfo = startInfo };
-
-                    process.Start();
                 }
+            }
+            catch (Exception ex)
+            {
+                Debug.Log($"Error during exit: {ex.Message}");
             }
 
             Debug.Release();
@@ -233,6 +252,7 @@ namespace FileConverter
             {
                 Debug.LogError("Can't retrieve view model locator.");
                 Application.AskForShutdown();
+                return;
             }
 
             if (this.TryFindResource("Upgrade") is UpgradeService upgradeService)
@@ -243,6 +263,7 @@ namespace FileConverter
             {
                 Debug.LogError("Can't retrieve Upgrade service.");
                 Application.AskForShutdown();
+                return;
             }
 
             services
@@ -682,7 +703,7 @@ namespace FileConverter
                         return true;
 
                     case "version":
-                        Console.WriteLine("2.2.7");
+                        Console.WriteLine(ApplicationVersion.ToString());
                         ExitEarlyProcess();
                         return true;
                 }
@@ -824,11 +845,19 @@ namespace FileConverter
 
         private void DisposeTrayIcon()
         {
-            if (this.trayIcon != null)
+            var icon = this.trayIcon;
+            this.trayIcon = null;
+            if (icon != null)
             {
-                this.trayIcon.Visible = false;
-                this.trayIcon.Dispose();
-                this.trayIcon = null;
+                try
+                {
+                    icon.Visible = false;
+                    icon.Dispose();
+                }
+                catch
+                {
+                    // Ignore disposal errors (icon may already be disposed by another thread).
+                }
             }
         }
 

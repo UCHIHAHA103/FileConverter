@@ -25,7 +25,7 @@ namespace FileConverter.ConversionJobs
 
         private readonly List<FFMpegPass> ffmpegArgumentStringByPass = new List<FFMpegPass>();
 
-        ISettingsService settingsService = Ioc.Default.GetRequiredService<ISettingsService>();
+        ISettingsService settingsService;
 
         public ConversionJob_FFMPEG() : base()
         {
@@ -60,6 +60,8 @@ namespace FileConverter.ConversionJobs
         protected override void Initialize()
         {
             base.Initialize();
+
+            this.settingsService = Ioc.Default.GetRequiredService<ISettingsService>();
 
             if (this.ConversionPreset == null)
             {

@@ -334,6 +334,23 @@ ConversionJob_FFMPEG.cs
 | #450 | FileConverterExtension.DLL 注册表记录错误 |
 | #288 | Windows 11 22H2 无法安装 |
 | #396 | 卸载后仍残留文件 |
+| **NEW** | **卸载不干净 + 缺少 uninstall.exe** |
+
+#### 🔴 卸载优化需求（用户反馈 2026-04-28）
+
+**现状问题**：
+1. 没有独立的 `uninstall.exe`，用户需要通过控制面板或重新打开 MSI 选 Remove
+2. 卸载后注册表残留大量项（HKCR\CLSID\{AF9B72B5...}、HKCR\*\shellex\ContextMenuHandlers\FileConverterExtension、HKCU\Software\FileConverter 等）
+3. DOpus 等第三方文件管理器的 shell ext 缓存可能导致卸载后仍有残留行为
+
+**目标**：
+1. 安装目录下放 `uninstall.exe`，双击直接触发 MSI 卸载（`msiexec /x {ProductCode} /qr`）
+2. 控制面板"卸载"和 `uninstall.exe` 使用同一机制
+3. 卸载时彻底清理：
+   - `UninstallShell` CA（RegAsm /u）清理 COM 注册
+   - Product.wxs 的 `RemoveRegistryValues` 清理 HKCU\Software\FileConverter
+   - 可选：卸载时提供"清除用户数据"选项（Settings.user.xml、Diagnostics 日志等）
+4. 安装时写入 `ARPINSTALLLOCATION` 让控制面板的"安装位置"字段正确显示
 
 ### 6.2 更新器
 

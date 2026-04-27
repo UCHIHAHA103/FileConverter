@@ -337,24 +337,28 @@ namespace FileConverter
             }
 
             // Looks inside CURRENT_USER.
-            RegistryKey winwordKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(registryKeyPattern, false);
-            if (winwordKey != null)
+            using (RegistryKey winwordKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(registryKeyPattern, false))
             {
-                string winwordPath = winwordKey.GetValue(string.Empty).ToString();
-                if (!string.IsNullOrEmpty(winwordPath))
+                if (winwordKey != null)
                 {
-                    return true;
+                    string winwordPath = winwordKey.GetValue(string.Empty)?.ToString();
+                    if (!string.IsNullOrEmpty(winwordPath))
+                    {
+                        return true;
+                    }
                 }
             }
 
             // If not found, looks inside LOCAL_MACHINE.
-            winwordKey = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(registryKeyPattern, false);
-            if (winwordKey != null)
+            using (RegistryKey winwordKey = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(registryKeyPattern, false))
             {
-                string winwordPath = winwordKey.GetValue(string.Empty).ToString();
-                if (!string.IsNullOrEmpty(winwordPath))
+                if (winwordKey != null)
                 {
-                    return true;
+                    string winwordPath = winwordKey.GetValue(string.Empty)?.ToString();
+                    if (!string.IsNullOrEmpty(winwordPath))
+                    {
+                        return true;
+                    }
                 }
             }
 
