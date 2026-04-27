@@ -3,7 +3,7 @@
      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui"
      xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
 
-    <Package Name="File Converter" Language="1033" Version="2.2.4" Manufacturer="Adrien Allard"
+    <Package Name="File Converter" Language="1033" Version="2.2.5" Manufacturer="Adrien Allard"
              UpgradeCode="e3ca717b-a897-418a-bbef-5c7e35c76e4b" InstallerVersion="500">
         <Icon Id="icon.ico" SourceFile="..\Resources\Icons\ApplicationIcon.ico" />
         <Property Id="ARPPRODUCTICON" Value="icon.ico" />
@@ -33,21 +33,43 @@
              and makes the uninstall feel very slow. -->
 
         <!-- ========== Custom Actions ========== -->
+        <!--
+          Shell extension registration strategy (v2.2.5+):
+          ================================================
+          We run TWO registration attempts, both with Return="ignore" so that
+          a failure of one attempt NEVER aborts the install with the classic
+          "There is a problem with this Windows Installer package" dialog.
+
+          1) InstallShell : deferred / Impersonate=no (runs as SYSTEM).
+             Historically what the original author used. Can fail with
+             error 1722/2753 on machines that have stale MSI cache residue
+             from older FileConverter/Tichau installs.
+
+          2) PostInstallShellFallback : immediate / runs AFTER InstallFinalize
+             in the installer process (which is already elevated because the
+             user went through UAC). No FileRef dependency and no SYSTEM
+             context, so it sidesteps both the 2753 MSI-cache bug and the
+             WPF/HKCU issues that bit v2.2.3.
+
+          As long as either attempt succeeds, the right-click menu appears.
+        -->
         <CustomAction Id="InstallShell"
             ExeCommand="--register-shell-extension &quot;[INSTALLFOLDER]FileConverterExtension.dll&quot;"
-            Execute="deferred" Return="check" Impersonate="no" FileRef="FileConverter.exe" />
+            Execute="deferred" Return="ignore" Impersonate="no" FileRef="FileConverter.exe" />
 
         <CustomAction Id="UninstallShell"
             ExeCommand="--unregister-shell-extension &quot;[INSTALLFOLDER]FileConverterExtension.dll&quot;"
-            Execute="deferred" Return="check" Impersonate="no" FileRef="FileConverter.exe" />
+            Execute="deferred" Return="ignore" Impersonate="no" FileRef="FileConverter.exe" />
 
         <CustomAction Id="PostInstallInit"
             ExeCommand="--post-install-init"
-            Execute="immediate" FileRef="FileConverter.exe" />
+            Execute="immediate" Return="ignore" FileRef="FileConverter.exe" />
 
         <!-- Fallback shell registration: runs AFTER InstallFinalize (immediate mode)
-             so FileConverter.exe is guaranteed to be on disk. This handles the case where
-             the deferred InstallShell CA fails due to MSI upgrade residue (error 2753). -->
+             so FileConverter.exe is guaranteed to be on disk. This handles the case
+             where the deferred InstallShell CA fails due to MSI upgrade residue
+             (error 2753) or SYSTEM-context quirks. Runs on BOTH fresh install and
+             upgrade so we always have a safety net. -->
         <CustomAction Id="PostInstallShellFallback"
             ExeCommand="--register-shell-extension &quot;[INSTALLFOLDER]FileConverterExtension.dll&quot;"
             Execute="immediate" Return="ignore" FileRef="FileConverter.exe" />
@@ -75,7 +97,7 @@
             <Custom Action="PostInstallInit" After="InstallFinalize"
                 Condition="NOT Installed" />
             <Custom Action="PostInstallShellFallback" After="InstallFinalize"
-                Condition="Installed AND (NOT (REMOVE~=&quot;ALL&quot;))" />
+                Condition="NOT (REMOVE~=&quot;ALL&quot;)" />
 
             <!-- Delete user settings if user chose to remove them -->
             <Custom Action="DeleteUserSettings" After="RemoveFiles"

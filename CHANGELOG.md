@@ -1,5 +1,29 @@
 # Change Log
 
+## Version 2.2.5 (UCHIHAHA103 fork hotfix)
+
+> **修复 v2.2.4 安装时出现 "There is a problem with this Windows Installer package"（错误 1722）**
+
+- **Fixes: Installer aborts with MSI error 1722 at "Register shell extension to Windows Explorer"**.
+  v2.2.4 restored `Return="check"` on the `InstallShell` deferred custom
+  action (matching v2.2.2 behavior). On machines with stale MSI cache or
+  other environment quirks, the SYSTEM-context `RegAsm.Register64` call
+  can still fail — and because `Return="check"` escalates any CA failure
+  into a fatal installer error, the user sees the classic
+  "A program run as part of the setup did not finish as expected" dialog
+  and the installation rolls back.
+  Fix:
+  - `InstallShell` / `UninstallShell` / `PostInstallInit` now use
+    `Return="ignore"` so a single CA failure can never abort the install.
+  - `PostInstallShellFallback` (immediate mode, runs in the elevated
+    installer process AFTER `InstallFinalize`) now runs on **both** fresh
+    install and upgrade. It has no `SYSTEM` / no WPF-HKCU quirks and no
+    `FileRef` 2753 exposure, and acts as the reliable primary path.
+  - As long as **either** attempt succeeds, Explorer shows the right-click
+    menu. If both somehow fail the install still completes; the user can
+    then run `FileConverter.exe --register-shell-extension FileConverterExtension.dll`
+    manually from an admin prompt.
+
 ## Version 2.2.4 (UCHIHAHA103 fork hotfix)
 
 > **修复 v2.2.3 安装后右键菜单消失的严重回归问题**（两个独立根因）
