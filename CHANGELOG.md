@@ -1,5 +1,38 @@
 # Change Log
 
+## Version 2.2.7 (UCHIHAHA103 fork hotfix)
+
+> **修复 v2.2.3+ 安装后右键菜单丢失的根因**
+
+经过完整的 9-stage bisect 定位，元凶是 **Stage 1（commit `33340d0`）** 在 `Settings.default.xml`
+里新增的 preset **`Images to Video/To Mp4 (24fps)`**（原 issue #25）。该 preset 声明
+`OutputType="Mp4"` 但 `InputTypes` 全部是 image 类别（png/jpg/bmp 等）。
+
+完整失败链：
+1. MSI deferred CA 运行 `FileConverter.exe --post-install-init`
+2. 主程序加载 `Settings.default.xml` → `Settings` 类
+3. `ConversionPreset.OnDeserializationComplete` → `CoerceInputTypes()` 发现 Mp4 输出不兼容
+   Image 输入，**把该 preset 的所有 InputTypes 全部删除**（合约要求之一：输出类型必须和输入
+   类别兼容，`Helpers.IsOutputTypeCompatibleWithCategory`）
+4. `Save()` 把"清理后"的 Settings 写到 `%LocalAppData%\FileConverter\Settings.user.xml`。该
+   preset 的 `InputTypes` 列表空了，序列化后 **完全没有 `<InputTypes>` 元素**
+5. explorer 加载 shell extension，`FileConverterExtension` 读 `Settings.user.xml`。对应的
+   `PresetReference.InputTypes` 反序列化为 **null**
+6. `CanShowMenu()` 里 `presetReference.InputTypes.Contains(extension)` → **NullReferenceException**
+7. SharpShell / COM 捕获异常，shell ext 被认为不可用 → **整个 File Converter 菜单都不出现**
+
+### Fixes in v2.2.7
+
+- **`FileConverterExtension.CanShowMenu` / `RefreshPresetList` 添加 null-guard**
+  防止任何 preset 的 `InputTypes == null` 时崩溃（保底，防止今后同类问题）。
+- **从 `Settings.default.xml` 中移除 `Images to Video/To Mp4 (24fps)` preset**
+  这个 preset 本身与现有 preset 机制不兼容（Image → Video 需要特殊的 category 支持）。
+  `To Webp (lossless)` preset 保留，不受影响。
+- **保留 v2.2.6 的所有修复**（v2.2.4 shell ext 注册提前、v2.2.5 CA Return="ignore"、
+  v2.2.6 `Environment.Exit(0)` 清理 MSI 日志）。
+
+
+
 ## Version 2.2.6 (UCHIHAHA103 fork hotfix)
 
 > **后续清理：修掉 v2.2.5 安装日志里的 CLR 未处理异常（功能无影响，但清理日志）**

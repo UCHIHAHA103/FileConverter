@@ -682,7 +682,7 @@ namespace FileConverter
                         return true;
 
                     case "version":
-                        Console.WriteLine("2.2.6");
+                        Console.WriteLine("2.2.7");
                         ExitEarlyProcess();
                         return true;
                 }

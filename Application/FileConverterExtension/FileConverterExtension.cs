@@ -76,11 +76,16 @@ namespace FileConverterExtension
             this.RefreshExtensionCacheFromSelectedItems();
 
             PresetReference[] presets = this.PresetReferences;
+            if (presets == null)
+            {
+                return false;
+            }
+
             foreach (string extension in this.extensionCache)
             {
                 foreach (PresetReference presetReference in presets)
                 {
-                    if (presetReference.InputTypes.Contains(extension))
+                    if (presetReference?.InputTypes != null && presetReference.InputTypes.Contains(extension))
                     {
                         return true;
                     }
@@ -211,11 +216,16 @@ namespace FileConverterExtension
             // Activate compatible menu entries.
             PresetReference[] presets = this.presetReferences;
             this.menuEntries.Clear();
+            if (presets == null)
+            {
+                return;
+            }
+
             foreach (string extension in this.extensionCache)
             {
                 foreach (PresetReference presetReference in presets)
                 {
-                    if (!presetReference.InputTypes.Contains(extension))
+                    if (presetReference?.InputTypes == null || !presetReference.InputTypes.Contains(extension))
                     {
                         continue;
                     }
