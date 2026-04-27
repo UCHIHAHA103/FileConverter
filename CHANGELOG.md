@@ -1,5 +1,31 @@
 # Change Log
 
+## Version 2.2.4 (UCHIHAHA103 fork hotfix)
+
+> **修复 v2.2.3 安装后右键菜单消失的严重回归问题**（两个独立根因）
+
+- **Fixes: Context menu missing after install/upgrade to v2.2.3 (critical regression)**.
+  Two independent bugs both broke shell extension registration in v2.2.3:
+  1. `OnStartup` called `ApplySystemTheme()` before handling non-UI command-line
+     args. The MSI deferred CA `--register-shell-extension` runs as `SYSTEM`,
+     which has no HKCU and cannot safely mutate the WPF `ResourceDictionary`
+     that `ApplySystemTheme` touches. This corrupted WPF app state and caused
+     the subsequent `RegAsm.Register64` call to silently fail.
+     Fix: added `HandleEarlyCommandLineArgs()` that runs **before any WPF / DI
+     initialization** and handles `register-shell-extension`,
+     `unregister-shell-extension`, `remove-user-data`, `version` synchronously
+     and shuts the app down immediately. Restores v2.2.2 behavior.
+  2. `Product.wxs` `InstallShell` custom action was gated by `NOT Installed`,
+     which evaluates to **false** during a v2.2.2 → v2.2.3 major-upgrade because
+     MSI sets `Installed=true` for the existing product. `InstallShell`,
+     `PostInstallInit` and `PostInstallShellFallback` were all skipped, so
+     upgrading users ended up with no shell registration at all.
+     Fix: changed condition to `NOT (REMOVE~="ALL")`, which correctly fires on
+     both fresh install and upgrade/repair but not on uninstall.
+- **Workaround for users stuck on v2.2.3**: open an admin PowerShell and run
+  `cd "C:\Program Files\File Converter"; .\FileConverter.exe --register-shell-extension ".\FileConverterExtension.dll"`
+  (no reinstall required).
+
 ## Version 2.2.1 (UCHIHAHA103 fork hotfix)
 
 - Fixes: **Language setting has no effect** (upstream #593, #606, #609, #646, #667, #673, #690, #692, #735, #737, #750).

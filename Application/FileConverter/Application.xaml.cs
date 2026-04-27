@@ -42,7 +42,7 @@ namespace FileConverter
                                                       {
                                                           Major = 2,
                                                           Minor = 2,
-                                                          Patch = 3,
+                                                          Patch = 4,
                                                       };
 
         private bool needToRunConversionThread;
@@ -665,7 +665,7 @@ namespace FileConverter
                         return true;
 
                     case "version":
-                        Console.WriteLine("2.2.3");
+                        Console.WriteLine("2.2.4");
                         Application.Current.Shutdown();
                         return true;
                 }
