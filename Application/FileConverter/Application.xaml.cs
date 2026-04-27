@@ -97,6 +97,14 @@ namespace FileConverter
             // in the installed layout, causing all UI strings to fall back to English.
             AppDomain.CurrentDomain.AssemblyResolve += this.OnAssemblyResolve;
 
+            // Handle non-UI commands early, BEFORE any WPF initialization (theme, DI, etc).
+            // This is critical because --register-shell-extension runs as SYSTEM via MSI
+            // deferred CA, where WPF/HKCU operations may fail silently.
+            if (this.HandleEarlyCommandLineArgs())
+            {
+                return;
+            }
+
             this.RegisterServices();
 
             this.Initialize();
@@ -502,6 +510,63 @@ namespace FileConverter
                 Application.AskForShutdown();
             }
         }
+
+        /// <summary>
+        /// Parse command-line args early (before WPF theme/DI init) and handle
+        /// non-UI commands that should run without full application setup.
+        /// Returns true if the app should exit immediately.
+        /// </summary>
+        private bool HandleEarlyCommandLineArgs()
+        {
+            string[] args = Environment.GetCommandLineArgs();
+            for (int index = 1; index < args.Length; index++)
+            {
+                string argument = args[index];
+                if (string.IsNullOrEmpty(argument) || !argument.StartsWith("--"))
+                {
+                    continue;
+                }
+
+                string parameterTitle = argument.Substring(2).ToLowerInvariant();
+
+                switch (parameterTitle)
+                {
+                    case "register-shell-extension":
+                        if (index < args.Length - 1)
+                        {
+                            string shellExtensionPath = args[index + 1];
+                            if (!Helpers.RegisterShellExtension(shellExtensionPath))
+                            {
+                                Debug.LogError(errorCode: 0x0C, $"Failed to register shell extension {shellExtensionPath}.");
+                            }
+                        }
+
+                        Application.Current.Shutdown();
+                        return true;
+
+                    case "unregister-shell-extension":
+                        if (index < args.Length - 1)
+                        {
+                            string shellExtensionPath = args[index + 1];
+                            if (!Helpers.UnregisterExtension(shellExtensionPath))
+                            {
+                                Debug.LogError(errorCode: 0x0E, $"Failed to unregister shell extension {shellExtensionPath}.");
+                            }
+                        }
+
+                        Application.Current.Shutdown();
+                        return true;
+
+                    case "version":
+                        Console.WriteLine("2.2.7");
+                        Application.Current.Shutdown();
+                        return true;
+                }
+            }
+
+            return false;
+        }
+
         private Assembly OnAssemblyResolve(object sender, ResolveEventArgs args)
         {
             // ResourceManager requests satellite assemblies with names like
