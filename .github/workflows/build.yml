@@ -2,7 +2,7 @@ name: Build
 
 on:
   push:
-    branches: [ integration, master, main ]
+    branches: [ integration, master, main, 'bisect-stage-*' ]
     tags: [ 'v*' ]
   pull_request:
     branches: [ integration, master, main ]
