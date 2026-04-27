@@ -2364,7 +2364,7 @@
         <Settings Key="ImageMaximumSize" Value="0" />
         <OutputFileNameTemplate>(p)(f)</OutputFileNameTemplate>
     </ConversionPreset>
-    <ConversionPreset Name="Images to Video/To Mp4 (24fps)" OutputType="Mp4" IsDefaultSettings="true">
+    <ConversionPreset Name="Images to Video_To Mp4 (24fps)" OutputType="Mp4" IsDefaultSettings="true">
         <InputTypes>png</InputTypes>
         <InputTypes>jpg</InputTypes>
         <InputTypes>jpeg</InputTypes>
