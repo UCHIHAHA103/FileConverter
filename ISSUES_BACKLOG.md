@@ -223,7 +223,7 @@ ConversionJob_FFMPEG.cs
 |---|---|---|
 | #692 | 右键菜单与语言转换无作用 | ✅ v2.2.7 修复 |
 | #685 | Convert 菜单项突然不显示 | ✅ v2.2.7 修复（null-guard + sanitize） |
-| #675 | Context Menu Lag Caused by File Conversion | ❌ 未修复（需延迟加载图标优化） |
+| #675 | Context Menu Lag Caused by File Conversion | ✅ 已修复（Icon bitmap 缓存，消除 GDI 对象重复创建） |
 | #645 | Directory Opus Explorer 中右键菜单不显示 | ✅ v2.2.7 修复（PathHelpers fallback） |
 | #633 | Context menu 中不出现 | ✅ v2.2.7 修复 |
 | #604 | Convert 选项从右键菜单消失 | ✅ v2.2.7 修复 |
@@ -285,7 +285,7 @@ ConversionJob_FFMPEG.cs
 | # | 描述 | 状态 |
 |---|---|---|
 | #605 | 缩放 75% 不生效 | ❌ 未修复（需排查 VideoScale/ImageScale 逻辑） |
-| #599 | EXIF 数据丢失 | ❌ 未修复（ImageMagick 未保留 EXIF） |
+| #599 | EXIF 数据丢失 | ✅ 已修复（ImageMagick AutoOrient + profile 保留） |
 | #510 | 已选 "Move to Archive" 但仍附加 "(2)" 到文件名 | ❌ 未修复（GenerateUniquePath 逻辑） |
 | #674 | "Unable to extend cache - no space on device" | ❌ 未修复（磁盘空间检测） |
 | #642 | 上次更新后无法获取可执行路径 | ✅ v2.2.7 修复（PathHelpers fallback） |
@@ -365,7 +365,7 @@ ConversionJob_FFMPEG.cs
 | # | 描述 | 状态 |
 |---|---|---|
 | #721 | v2.2 打包 bug | ✅ v2.2.7 修复（Return="ignore" + PostInstallShellFallback） |
-| #579 | v2.1 安装器清空 Temp 目录（严重！） | ❌ 未修复（需排查 RemoveFolderEx 范围） |
+| #579 | v2.1 安装器清空 Temp 目录（严重！） | ✅ 当前版本不存在此问题（INSTALLFOLDER=ProgramFiles64Folder，不涉及 Temp） |
 | #526 | 安装 bug code 0xF | ✅ v2.2.7 修复（HandleEarlyCommandLineArgs + ExitEarlyProcess） |
 | #450 | FileConverterExtension.DLL 注册表记录错误 | ✅ v2.2.7 修复（CleanupShellExtensionRegistry） |
 | #288 | Windows 11 22H2 无法安装 | ❌ 未验证 |
@@ -424,14 +424,14 @@ ConversionJob_FFMPEG.cs
 5. ✅ ~~**合并 PR #562**：ALAC 支持~~（已手动实现，OutputType.Alac + .m4a 输出）
 6. - [ ] 发布版本
 
-### 🚀 Sprint 4：发布 **2.4.0 "Enhancement"**（持续）
+### 🚀 Sprint 4：发布 **2.4.0 "Enhancement"**（进行中）
 
 > 目标：右键菜单、批处理、队列增强
 
-1. **T-CTX1 ~ T-CTX3**：右键菜单修复
-2. Watch Folder（#519 / #613）
-3. Queue 管理（#701 / #429）
-4. 进度条（#384）
+1. ✅ ~~**T-CTX1 ~ T-CTX3**：右键菜单修复~~（全部 9 个 issue 已修复，含 #675 延迟优化）
+2. - [ ] Watch Folder（#519 / #613）
+3. - [ ] Queue 管理（#701 / #429）
+4. - [ ] 进度条（#384）
 
 ### 🚀 Sprint 5+：按需实现高票功能请求
 
