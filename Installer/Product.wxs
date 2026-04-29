@@ -34,24 +34,20 @@
 
         <!-- ========== Custom Actions ========== -->
         <!--
-          Shell extension registration strategy (v2.2.5+):
+          Shell extension registration strategy (v2.2.8+):
           ================================================
-          We run TWO registration attempts, both with Return="ignore" so that
-          a failure of one attempt NEVER aborts the install with the classic
-          "There is a problem with this Windows Installer package" dialog.
-
-          1) InstallShell : deferred / Impersonate=no (runs as SYSTEM).
-             Historically what the original author used. Can fail with
-             error 1722/2753 on machines that have stale MSI cache residue
-             from older FileConverter/Tichau installs.
-
-          2) PostInstallShellFallback : immediate / runs AFTER InstallFinalize
-             in the installer process (which is already elevated because the
-             user went through UAC). No FileRef dependency and no SYSTEM
-             context, so it sidesteps both the 2753 MSI-cache bug and the
-             WPF/HKCU issues that bit v2.2.3.
-
-          As long as either attempt succeeds, the right-click menu appears.
+          All CAs use FileRef="FileConverter.exe" + Return="ignore".
+          The key fix for error 2753 during uninstall: schedule UninstallShell
+          BEFORE RemoveFiles (not Before RemoveRegistryValues) so that
+          FileConverter.exe is still on disk when the CA runs.
+          
+          Install path:
+            InstallShell (deferred, after WriteRegistryValues)
+            PostInstallShellFallback (immediate, after InstallFinalize)
+          
+          Uninstall path:
+            UninstallShell (deferred, before RemoveFiles — exe still on disk)
+            WiX ForceDeleteOnUninstall cleans HKCR as safety net
         -->
         <CustomAction Id="InstallShell"
             ExeCommand="--register-shell-extension &quot;[INSTALLFOLDER]FileConverterExtension.dll&quot;"
@@ -65,18 +61,10 @@
             ExeCommand="--post-install-init"
             Execute="immediate" Return="ignore" FileRef="FileConverter.exe" />
 
-        <!-- Fallback shell registration: runs AFTER InstallFinalize (immediate mode)
-             so FileConverter.exe is guaranteed to be on disk. This handles the case
-             where the deferred InstallShell CA fails due to MSI upgrade residue
-             (error 2753) or SYSTEM-context quirks. Runs on BOTH fresh install and
-             upgrade so we always have a safety net. -->
         <CustomAction Id="PostInstallShellFallback"
             ExeCommand="--register-shell-extension &quot;[INSTALLFOLDER]FileConverterExtension.dll&quot;"
             Execute="immediate" Return="ignore" FileRef="FileConverter.exe" />
 
-        <!-- Delete user settings when REMOVESETTINGS=1.
-             Uses FileConverter.exe itself to delete its own AppData folder,
-             avoiding dependency on WixQuietExec / Wix4UtilCA_X64 (error 2753). -->
         <CustomAction Id="DeleteUserSettings"
             FileRef="FileConverter.exe"
             ExeCommand="--remove-user-data"
@@ -90,7 +78,8 @@
         <Property Id="REMOVESETTINGS" Value="0" />
 
         <InstallExecuteSequence>
-            <Custom Action="UninstallShell" Before="RemoveRegistryValues"
+            <!-- Uninstall: run BEFORE RemoveFiles so FileConverter.exe is still on disk -->
+            <Custom Action="UninstallShell" Before="RemoveFiles"
                 Condition="(NOT UPGRADINGPRODUCTCODE) AND (REMOVE~=&quot;ALL&quot;)" />
             <Custom Action="InstallShell" After="WriteRegistryValues"
                 Condition="NOT (REMOVE~=&quot;ALL&quot;)" />
@@ -100,7 +89,7 @@
                 Condition="NOT (REMOVE~=&quot;ALL&quot;)" />
 
             <!-- Delete user settings if user chose to remove them -->
-            <Custom Action="DeleteUserSettings" After="RemoveFiles"
+            <Custom Action="DeleteUserSettings" Before="RemoveFiles"
                 Condition="(REMOVE~=&quot;ALL&quot;) AND (NOT UPGRADINGPRODUCTCODE) AND (REMOVESETTINGS=&quot;1&quot;)" />
         </InstallExecuteSequence>
 
