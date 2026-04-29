@@ -97,10 +97,12 @@ namespace FileConverter.ConversionJobs
 
         protected virtual void FillFFMpegArgumentsList()
         {
-            // "-progress pipe:1" would send structured progress data to stdout, but since
+            // -progress pipe:1 would send structured progress data to stdout, but since
             // stdout is no longer redirected (see above), we must not pass this flag.
             // Progress is still parsed from stderr via the legacy "size=... time=..." format.
-            const string baseArgs = "-n";
+            // Use -y to allow overwriting output files (#636); deduplication is handled by
+            // GenerateUniquePath in PrepareConversion.
+            const string baseArgs = "-y";
 
             bool customCommandEnabled = this.ConversionPreset.GetSettingsValue<bool>(ConversionPreset.ConversionSettingKeys.EnableFFMPEGCustomCommand);
             if (customCommandEnabled)
@@ -320,7 +322,9 @@ namespace FileConverter.ConversionJobs
                                 break;
                         }
 
-                        string encoderArgs = $"-c:v {videoCodec} {videoCodecArgs} {audioArgs} {videoFilteringArgs}";
+                        // -movflags +faststart moves moov atom to start of file for streaming and thumbnail display (#270).
+                        string movflags = this.ConversionPreset.OutputType == OutputType.Mp4 ? "-movflags +faststart" : string.Empty;
+                        string encoderArgs = $"-c:v {videoCodec} {videoCodecArgs} {audioArgs} {videoFilteringArgs} {movflags}";
 
                         string arguments = $"{baseArgs} {hwAccelArg} -i \"{this.InputFilePath}\" {encoderArgs} \"{this.OutputFilePath}\"";
 
@@ -640,7 +644,7 @@ namespace FileConverter.ConversionJobs
         /// </summary>
         private void FillFFMpegArgumentsListSoftwareFallback()
         {
-            const string baseArgs = "-n";
+            const string baseArgs = "-y"; // Allow overwrite (#636)
 
             int videoEncodingQuality = this.ConversionPreset.GetSettingsValue<int>(ConversionPreset.ConversionSettingKeys.VideoQuality);
             VideoEncodingSpeed videoEncodingSpeed = this.ConversionPreset.GetSettingsValue<VideoEncodingSpeed>(ConversionPreset.ConversionSettingKeys.VideoEncodingSpeed);
@@ -655,7 +659,8 @@ namespace FileConverter.ConversionJobs
                 audioArgs = $"-c:a aac -qscale:a {this.AACBitrateToQualityIndex(audioEncodingBitrate)}";
             }
 
-            string encoderArgs = $"-c:v libx264 -preset {this.H264EncodingSpeedToPreset(videoEncodingSpeed)} -crf {this.H264QualityToCRF(videoEncodingQuality)} {audioArgs} {videoFilteringArgs}";
+            string movflags = this.ConversionPreset.OutputType == OutputType.Mp4 ? "-movflags +faststart" : string.Empty;
+            string encoderArgs = $"-c:v libx264 -preset {this.H264EncodingSpeedToPreset(videoEncodingSpeed)} -crf {this.H264QualityToCRF(videoEncodingQuality)} {audioArgs} {videoFilteringArgs} {movflags}";
             string arguments = $"{baseArgs} -i \"{this.InputFilePath}\" {encoderArgs} \"{this.OutputFilePath}\"";
             this.ffmpegArgumentStringByPass.Add(new FFMpegPass(arguments));
         }

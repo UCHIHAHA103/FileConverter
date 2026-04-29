@@ -237,6 +237,31 @@ namespace FileConverter.ConversionJobs
             }
 
             this.OutputFilePaths = outputFilePaths;
+
+            // Check available disk space on output drive (#674).
+            try
+            {
+                string outputDir = System.IO.Path.GetDirectoryName(this.initialInputPath);
+                if (!string.IsNullOrEmpty(outputDir))
+                {
+                    string root = System.IO.Path.GetPathRoot(outputDir);
+                    if (!string.IsNullOrEmpty(root))
+                    {
+                        var driveInfo = new System.IO.DriveInfo(root);
+                        long inputSize = new System.IO.FileInfo(this.initialInputPath).Length;
+                        if (driveInfo.AvailableFreeSpace < inputSize)
+                        {
+                            this.ConversionFailed($"Not enough disk space on {root} ({driveInfo.AvailableFreeSpace / 1048576} MB free, need ~{inputSize / 1048576} MB).");
+                            return;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.Log($"Disk space check failed (non-fatal): {ex.Message}");
+            }
+
             if (this.OutputFilePaths.Length == 0)
             {
                 int outputFilesCount = this.GetOutputFilesCount();
@@ -366,7 +391,7 @@ namespace FileConverter.ConversionJobs
 
             if (this.State == ConversionState.Done && !this.AllOutputFilesExists())
             {
-                Debug.LogError(Properties.Resources.ErrorCantFindOutputFiles);
+                this.ConversionFailed($"Conversion appeared to succeed but output file was not found: {this.OutputFilePath}");
             }
             else if (this.State == ConversionState.Failed && this.AtLeastOneOutputFilesExists())
             {
