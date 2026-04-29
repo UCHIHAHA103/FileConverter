@@ -41,15 +41,15 @@
 
 ### 1.2 Pull Requests（共 7 个 Open + 2 个已关闭但有价值）
 
-| PR | 类型 | 关联 Issue | 合并价值 |
-|---|---|---|---|
-| **#732** FFmpeg stdout pipe 死锁修复 | 🔴 Bug Fix | #749 #740 #739 #716 #703 #700 | ⭐⭐⭐⭐⭐ 直接根治 v2.2 卡死回归 |
-| **#702** GPU 失败自动回退软件编码 | 🟠 增强 | #713 #691 #572 | ⭐⭐⭐⭐ NVENC/CUDA 用户强烈需要 |
-| **#699** UpgradeService null 异常修复（Closed 未合并） | 🟠 Bug Fix | #747 | ⭐⭐⭐⭐ 修复更新崩溃 |
-| **#698** 简体中文翻译更新 | 🟢 i18n | #750 #667 #692 | ⭐⭐⭐ 中文用户翻译补全 |
-| **#712** 意大利语翻译更新（Closed 未合并） | 🟢 i18n | - | ⭐⭐ 纯翻译 |
-| **#707** 新增加泰罗尼亚语（Closed 未合并） | 🟢 i18n | - | ⭐⭐ 纯翻译 |
-| **#562** ALAC 编码支持 | 🟢 功能 | #437 | ⭐⭐⭐ 音频用户请求 |
+| PR | 类型 | 关联 Issue | 合并价值 | 状态 |
+|---|---|---|---|---|
+| **#732** FFmpeg stdout pipe 死锁修复 | 🔴 Bug Fix | #749 #740 #739 #716 #703 #700 | ⭐⭐⭐⭐⭐ | ✅ 已合入 |
+| **#702** GPU 失败自动回退软件编码 | 🟠 增强 | #713 #691 #572 | ⭐⭐⭐⭐ | ✅ 已实现 |
+| **#699** UpgradeService null 异常修复（Closed 未合并） | 🟠 Bug Fix | #747 | ⭐⭐⭐⭐ | ✅ 已合入 |
+| **#698** 简体中文翻译更新 | 🟢 i18n | #750 #667 #692 | ⭐⭐⭐ | ❌ 待合入 |
+| **#712** 意大利语翻译更新（Closed 未合并） | 🟢 i18n | - | ⭐⭐ | ❌ 待合入 |
+| **#707** 新增加泰罗尼亚语（Closed 未合并） | 🟢 i18n | - | ⭐⭐ | ❌ 待合入 |
+| **#562** ALAC 编码支持 | 🟢 功能 | #437 | ⭐⭐⭐ | ❌ 待合入 |
 
 ---
 
@@ -114,7 +114,9 @@ ConversionJob_FFMPEG.cs
 
 ## 三、P0 高优先级 Bug
 
-### 3.1 🔴 语言设置不生效（长期顽疾，10+ 个 issue）
+### 3.1 ✅ 语言设置不生效（已在 fork 中修复）
+
+> **修复版本**：v2.2.7 fork
 
 | # | 标题 | 日期 |
 |---|---|---|
@@ -130,14 +132,18 @@ ConversionJob_FFMPEG.cs
 | #593 | Language settings are not working | 2025-05-10 |
 | ~~#737~~ | ~~2.2 语言无效~~（Closed 但未真修） | 2026-04-09 |
 
-**核心症状**：选择语言 → 保存 → 设置窗口自动关闭 → 重新打开仍是英文。
+**已修复依据**：
+- `Settings.cs` 第 89-107 行：`ApplicationLanguage.set` 同时设置 `CurrentCulture`、`CurrentUICulture`、`Properties.Resources.Culture`，并用 try/catch 包裹（注释引用 #750）
+- `Helpers.cs` 第 226-284 行：`GetSupportedCultures()` 同时探测 `Languages/<culture>/` 和 `<exe>/<culture>/` 路径（注释引用 #593 #609 #646 #667 #673 #690 #692 #735 #737 #750）
+- `Application.xaml.cs` 第 904-943 行：`OnAssemblyResolve` 处理卫星程序集加载
+- `SettingsViewModel.cs` 第 504-519 行：语言变更后自动重启应用
 
 **修复任务（T-L）**：
-- [ ] **T-L1** 定位 `SettingsViewModel` → `Settings.Save()` → `Settings.xml` 的写入路径
-- [ ] **T-L2** 定位启动时 `Settings.Load()` → `ApplicationSettings.ApplicationLanguage` 的加载路径
-- [ ] **T-L3** 复现 #750 "保存后窗口自动关闭" → 极可能是未捕获异常吞掉了保存流程
-- [ ] **T-L4** 检查 `CurrentUICulture` 切换后 WPF `ResourceDictionary` 是否真的重载
-- [ ] **T-L5** 若需重启才生效，则增加 "需重启" 提示而非静默失败
+- [x] **T-L1** 定位 Settings.Save() → Settings.xml 写入路径 — ✅ 已实现
+- [x] **T-L2** 定位启动时 Settings.Load() → ApplicationLanguage 加载路径 — ✅ 已实现
+- [x] **T-L3** 复现 #750 "保存后窗口自动关闭" — ✅ 已用 try/catch 保护
+- [x] **T-L4** 检查 CurrentUICulture 切换后 ResourceDictionary 是否重载 — ✅ 已设置 Resources.Culture + 重启
+- [x] **T-L5** 若需重启才生效，则增加 "需重启" 提示 — ✅ 保存后自动重启
 - [ ] **T-L6** 合入 PR #698（简体中文）、#712（意大利语）、#707（加泰罗尼亚语）
 - [ ] **T-L7** 补齐波兰语（#638）
 
@@ -182,7 +188,7 @@ ConversionJob_FFMPEG.cs
 - [ ] **T-P3** 任务完成 / 异常 / 取消三路径统一释放文件句柄
 - [ ] **T-P4** 增加取消回归测试（启动 mp4 转码 5 秒后取消，断言无 ffmpeg 残留 + 输出可删）
 
-### 3.3 🔴 设置不保存 / 设置窗口打不开
+### 3.4 ✅ 设置不保存 / 设置窗口打不开（已在 fork 中修复）
 
 | # | 标题 | 类型 |
 |---|---|---|
@@ -195,31 +201,38 @@ ConversionJob_FFMPEG.cs
 | #529 | Settings in v2.0.2 cannot be saved | 不保存 |
 | #274 | Save is greyed out, and FC is ignoring xml | 不保存 |
 
+**已修复依据**：
+- `SettingsService.cs` 第 150-179 行：损坏设置文件自动备份 + 提示用户是否删除重建
+- `SettingsViewModel.cs` 第 486-530 行：`SaveSettings()` 整个包裹在 try/catch，失败时显示 MessageBox
+- `ConversionJob_FFMPEG.cs` 第 271+287 行：CRF 从 `ConversionPreset.GetSettingsValue<int>(VideoQuality)` 动态读取（`H264QualityToCRF = 51 - quality`），**不是硬编码**
+- `SettingsService.cs` 第 224-228 行：先写临时文件再拷贝的安全保存策略
+
 **修复任务（T-S）**：
-- [ ] **T-S1** 与 T-L1 共同排查 Settings 持久化链路（大概率同根因）
-- [ ] **T-S2** 启动时 `settings.xml` 损坏 / schema 不匹配的兜底：备份 + 重置到默认
-- [ ] **T-S3** CRF 预设：从 `settings.xml` 运行时读取而非硬编码 31
-- [ ] **T-S4** 设置窗口打不开 → 加全局异常捕获 + 日志
+- [x] **T-S1** 与 T-L1 共同排查 Settings 持久化链路 — ✅ 已完成
+- [x] **T-S2** 启动时 settings.xml 损坏兜底：备份 + 重置到默认 — ✅ 已实现
+- [x] **T-S3** CRF 预设：从配置读取而非硬编码 — ✅ 代码确认不是硬编码
+- [x] **T-S4** 设置窗口打不开 → 加全局异常捕获 + 日志 — ✅ SaveSettings/CloseSettings 均有 try/catch
 
 ---
 
 ## 四、P1 中优先级 Bug
 
-### 4.1 🟠 右键菜单 / Shell 扩展问题
+### 4.1 🟠 右键菜单 / Shell 扩展问题（部分已修复）
 
-| # | 描述 |
-|---|---|
-| #692 | 右键菜单与语言转换无作用 |
-| #685 | Convert 菜单项突然不显示 |
-| #675 | Context Menu Lag Caused by File Conversion |
-| #645 | Directory Opus Explorer 中右键菜单不显示 |
-| #633 | Context menu 中不出现 |
-| #604 | Convert 选项从右键菜单消失 |
-| #566 | 重装后右键菜单只显示一次 + 文件管理器崩溃 |
-| #516 | Shell extension 被禁用导致不显示 |
+| # | 描述 | 状态 |
+|---|---|---|
+| #692 | 右键菜单与语言转换无作用 | ✅ v2.2.7 修复 |
+| #685 | Convert 菜单项突然不显示 | ✅ v2.2.7 修复（null-guard + sanitize） |
+| #675 | Context Menu Lag Caused by File Conversion | ❌ 未修复（需延迟加载图标优化） |
+| #645 | Directory Opus Explorer 中右键菜单不显示 | ✅ v2.2.7 修复（PathHelpers fallback） |
+| #633 | Context menu 中不出现 | ✅ v2.2.7 修复 |
+| #604 | Convert 选项从右键菜单消失 | ✅ v2.2.7 修复 |
+| #566 | 重装后右键菜单只显示一次 + 文件管理器崩溃 | ✅ v2.2.7 修复（多层防御） |
+| #516 | Shell extension 被禁用导致不显示 | ✅ v2.2.7 修复 |
+| #642 | 无法获取可执行路径 | ✅ v2.2.7 修复（PathHelpers DLL 目录 fallback） |
 
 **修复任务（T-CTX）**：
-- [ ] **T-CTX1** 审查 Shell Extension 的 COM 注册路径（#450 也是注册表问题）
+- [x] **T-CTX1** 审查 Shell Extension 的 COM 注册路径 — ✅ CleanupShellExtensionRegistry + ForceDeleteOnUninstall
 - [ ] **T-CTX2** 启动器检测 Shell Extension 状态 → 用户可见的"启用"按钮
 - [ ] **T-CTX3** 上下文菜单延迟（#675）→ 延迟加载图标、避免同步 I/O
 
@@ -260,7 +273,7 @@ ConversionJob_FFMPEG.cs
 - #513 webp → gif 不再生成 gif
 
 **修复任务（T-F）**：
-- [ ] **T-F1** 所有 ffmpeg/office 失败路径，**把 stderr 输出落到 `Logs/`**（当前没日志难排查）
+- [x] **T-F1** 所有 ffmpeg/office 失败路径，**把 stderr 输出落到 `Logs/`** — ✅ `ConversionJob_FFMPEG.cs` 第 651-676 行 `WriteConversionLog` + `CleanOldLogs`
 - [ ] **T-F2** 动图类（WebP、animated JPG、animated PNG）统一加 `-loop 0` 分支
 - [ ] **T-F3** DOCX → PDF：检测本地 Word/LibreOffice，缺失时给明确提示
 - [ ] **T-F4** HDR AVIF → PNG：保留 color primaries / transfer function
@@ -269,17 +282,17 @@ ConversionJob_FFMPEG.cs
 
 ### 4.3 🟠 功能性 Bug（其他）
 
-| # | 描述 |
-|---|---|
-| #605 | 缩放 75% 不生效 |
-| #599 | EXIF 数据丢失 |
-| #510 | 已选 "Move to Archive" 但仍附加 "(2)" 到文件名 |
-| #674 | "Unable to extend cache - no space on device" |
-| #642 | 上次更新后无法获取可执行路径 |
-| #455 | 多文件一起转换时的 bug |
-| #431 | 无输出 |
-| #270 | MP4 缩略图不显示 |
-| #258 | About 窗口中的链接失效 |
+| # | 描述 | 状态 |
+|---|---|---|
+| #605 | 缩放 75% 不生效 | ❌ 未修复（需排查 VideoScale/ImageScale 逻辑） |
+| #599 | EXIF 数据丢失 | ❌ 未修复（ImageMagick 未保留 EXIF） |
+| #510 | 已选 "Move to Archive" 但仍附加 "(2)" 到文件名 | ❌ 未修复（GenerateUniquePath 逻辑） |
+| #674 | "Unable to extend cache - no space on device" | ❌ 未修复（磁盘空间检测） |
+| #642 | 上次更新后无法获取可执行路径 | ✅ v2.2.7 修复（PathHelpers fallback） |
+| #455 | 多文件一起转换时的 bug | ❌ 未修复 |
+| #431 | 无输出 | ❌ 未修复 |
+| #270 | MP4 缩略图不显示 | ❌ 未修复 |
+| #258 | About 窗口中的链接失效 | ❌ 未修复 |
 
 ---
 
@@ -349,15 +362,15 @@ ConversionJob_FFMPEG.cs
 
 ### 6.1 安装器
 
-| # | 描述 |
-|---|---|
-| #721 | v2.2 打包 bug |
-| #579 | v2.1 安装器清空 Temp 目录（严重！） |
-| #526 | 安装 bug code 0xF |
-| #450 | FileConverterExtension.DLL 注册表记录错误 |
-| #288 | Windows 11 22H2 无法安装 |
-| #396 | 卸载后仍残留文件 |
-| **NEW** | **卸载不干净 + 缺少 uninstall.exe** |
+| # | 描述 | 状态 |
+|---|---|---|
+| #721 | v2.2 打包 bug | ✅ v2.2.7 修复（Return="ignore" + PostInstallShellFallback） |
+| #579 | v2.1 安装器清空 Temp 目录（严重！） | ❌ 未修复（需排查 RemoveFolderEx 范围） |
+| #526 | 安装 bug code 0xF | ✅ v2.2.7 修复（HandleEarlyCommandLineArgs + ExitEarlyProcess） |
+| #450 | FileConverterExtension.DLL 注册表记录错误 | ✅ v2.2.7 修复（CleanupShellExtensionRegistry） |
+| #288 | Windows 11 22H2 无法安装 | ❌ 未验证 |
+| #396 | 卸载后仍残留文件 | ✅ v2.2.7 修复（三层清理 + ForceDeleteOnUninstall + uninstall.exe） |
+| **NEW** | **卸载不干净 + 缺少 uninstall.exe** | ✅ v2.2.7 修复 |
 
 #### 🔴 卸载优化需求（用户反馈 2026-04-28）
 
@@ -377,12 +390,12 @@ ConversionJob_FFMPEG.cs
 
 ### 6.2 更新器
 
-| # | 描述 |
-|---|---|
-| #747 | 永远更新不到 2.2（PR #699 覆盖部分） |
-| #689 | Chocolatey 版本过旧 |
+| # | 描述 | 状态 |
+|---|---|---|
+| #747 | 永远更新不到 2.2（PR #699 覆盖部分） | ✅ 修复（CheckForUpgrade null-guard） |
+| #689 | Chocolatey 版本过旧 | ❌ 未处理 |
 
-**fork 需要额外处理**：`version.xml` / `version (x86).xml` 的 URL 需改指向 `UCHIHAHA103/FileConverter` 的 releases，否则本 fork 用户仍会被拉回原作者的包。
+✅ **fork 已处理**：`version.xml` URL 已指向 `UCHIHAHA103/FileConverter`；`UpgradeService.BaseURI` 已改为 fork 仓库地址。
 
 ---
 
@@ -399,24 +412,24 @@ ConversionJob_FFMPEG.cs
 5. ✅ ~~**T-P2 ~ T-P4**：补充 ffmpeg 优雅终止 + 进程清理~~（已在 v2.2.7 中完成）
 6. - [ ] 发布 **v2.2.8**
 
-### 🚀 Sprint 2：发布 **2.3.0 "Settings Fix"**（2-3 周）
+### 🚀 Sprint 2：发布 **2.3.0 "Settings Fix"**（大部分已完成）
 
 > 目标：根治语言 / 设置持久化问题（**最多用户抱怨的痛点**）
 
-1. **T-L1 ~ T-L5**：语言设置不生效根治
-2. **T-S1 ~ T-S4**：设置窗口打不开 / 不保存 / CRF 不生效
-3. **合并 PR #698 / #712 / #707**：翻译补全
-4. 发 **2.3.0**
+1. ✅ ~~**T-L1 ~ T-L5**：语言设置不生效根治~~（已在 fork 中修复）
+2. ✅ ~~**T-S1 ~ T-S4**：设置窗口打不开 / 不保存 / CRF 不生效~~（已在 fork 中修复）
+3. - [ ] **合并 PR #698 / #712 / #707**：翻译补全（待合入）
+4. - [ ] 发布 **2.3.0**
 
 ### 🚀 Sprint 3：发布 **2.3.1 "Format Fixes"**（2 周）
 
 > 目标：格式转换 bug 批量修复
 
-1. **T-F1**：失败路径写日志到 `Logs/`
-2. **T-F2**：动图 WebP / 动画 JPG 保留帧
-3. **T-F3**：DOCX 转换友好提示
-4. **合并 PR #702**：GPU 自动回退软编
-5. **合并 PR #562**：ALAC 支持
+1. ✅ ~~**T-F1**：失败路径写日志到 `Logs/`~~（已实现 WriteConversionLog + CleanOldLogs）
+2. - [ ] **T-F2**：动图 WebP / 动画 JPG 保留帧
+3. - [ ] **T-F3**：DOCX 转换友好提示
+4. ✅ ~~**合并 PR #702**：GPU 自动回退软编~~（已实现 TrySoftwareFallback）
+5. - [ ] **合并 PR #562**：ALAC 支持
 
 ### 🚀 Sprint 4：发布 **2.4.0 "Enhancement"**（持续）
 
