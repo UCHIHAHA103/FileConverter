@@ -18,9 +18,9 @@ namespace FileConverter.Services
     public class UpgradeService : ObservableObject, IUpgradeService
     {
 #if DEBUG
-        private const string BaseURI = "https://raw.githubusercontent.com/Tichau/FileConverter/integration/";
+        private const string BaseURI = "https://raw.githubusercontent.com/UCHIHAHA103/FileConverter/integration/";
 #else
-        private const string BaseURI = "https://raw.githubusercontent.com/Tichau/FileConverter/master/";
+        private const string BaseURI = "https://raw.githubusercontent.com/UCHIHAHA103/FileConverter/master/";
 #endif
 
         [NotNull]
@@ -66,6 +66,11 @@ namespace FileConverter.Services
             catch (Exception exception)
             {
                 Diagnostics.Debug.Log($"Failed to check upgrade: {exception.Message}.");
+            }
+
+            if (task == null)
+            {
+                return null;
             }
 
             UpgradeVersionDescription versionDescription = await task;
@@ -234,23 +239,28 @@ namespace FileConverter.Services
             {
                 await this.webClient.DownloadFileTaskAsync(uri, installerPath);
 
+                this.webClient.DownloadProgressChanged -= this.WebClient_DownloadProgressChanged;
                 this.UpgradeVersionDescription.InstallerDownloadProgress = 100;
                 this.UpgradeVersionDescription.InstallerDownloadInProgress = false;
-                this.UpgradeVersionDescription = null;
             }
             catch (Exception exception)
             {
+                this.webClient.DownloadProgressChanged -= this.WebClient_DownloadProgressChanged;
                 Debug.LogError("Failed to download the new File Converter upgrade. You should try again or download it manually.");
                 Debug.Log(exception.ToString());
-                this.UpgradeVersionDescription.NeedToUpgrade = false;
+                if (this.UpgradeVersionDescription != null)
+                {
+                    this.UpgradeVersionDescription.NeedToUpgrade = false;
+                }
             }
-
-            this.webClient.DownloadProgressChanged -= this.WebClient_DownloadProgressChanged;
         }
         
         private void WebClient_DownloadProgressChanged(object sender, DownloadProgressChangedEventArgs eventArgs)
         {
-            this.UpgradeVersionDescription.InstallerDownloadProgress = eventArgs.ProgressPercentage;
+            if (this.UpgradeVersionDescription != null)
+            {
+                this.UpgradeVersionDescription.InstallerDownloadProgress = eventArgs.ProgressPercentage;
+            }
         }
     }
 }

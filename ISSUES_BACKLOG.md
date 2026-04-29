@@ -141,7 +141,30 @@ ConversionJob_FFMPEG.cs
 - [ ] **T-L6** 合入 PR #698（简体中文）、#712（意大利语）、#707（加泰罗尼亚语）
 - [ ] **T-L7** 补齐波兰语（#638）
 
-### 3.2 🔴 v2.2 转换卡死 / FFmpeg 残留（PR #732 一并解决）
+### 3.2 ✅ v2.2.3+ 右键菜单消失根因（已在 v2.2.7 修复）
+
+> **修复版本**：v2.2.7（2026-04-28）
+
+**元凶**：`Settings.default.xml` 中新增的 preset `Images to Video/To Mp4 (24fps)`（Stage 1, commit `33340d0`）。
+
+**完整失败链**：
+1. MSI deferred CA 运行 `FileConverter.exe --post-install-init`
+2. 主程序加载 `Settings.default.xml` → `Settings` 类反序列化
+3. `ConversionPreset.OnDeserializationComplete()` → `CoerceInputTypes()` 发现 **Mp4 OutputType 不兼容 Image 输入类别**（`Helpers.IsOutputTypeCompatibleWithCategory` 返回 false），**将该 preset 的全部 7 个 InputTypes（png/jpg/bmp/tif/tiff/jpeg/webp）全部删除**
+4. `Save()` 把"清理后"的 Settings 写到 `%LocalAppData%\FileConverter\Settings.user.xml`。该 preset 的 `InputTypes` 列表为空，**序列化后完全没有 `<InputTypes>` 元素**
+5. explorer/DOpus 加载 shell extension → `FileConverterExtension` 优先读 `Settings.user.xml` → 对应 preset 的 `PresetReference.InputTypes` 反序列化为 **null**（`string[]` 类型无 XmlArrayItem attribute，缺失元素 = null）
+6. `CanShowMenu()` → `presetReference.InputTypes.Contains(extension)` → **NullReferenceException**
+7. SharpShell/COM 捕获异常，shell ext 被认为不可用 → **整个 File Converter 右键菜单消失**
+
+**定位过程**：基于 v2.2.2 baseline 建立 12 个独立 bisect 分支（stage2–stage9 + stage1a/1b/1c），每个 stage 单独叠加一个功能模块后 CI 构建 MSI 逐个安装测试，最终锁定 Stage 1 的 `Settings.default.xml` 改动。再通过检查安装后实际的 `Settings.user.xml` 文件，确认了 `Images to Video_To Mp4` preset 的 InputTypes 被清空的事实。
+
+**修复措施（v2.2.7）**：
+1. shell ext `CanShowMenu` / `RefreshPresetList` 添加 null-guard（保底）
+2. `LoadExtensionSettingsIfNecessary` 加载后过滤掉 `InputTypes==null/empty` 的无效 preset
+3. `CreateMenu` per-preset try-catch + 外层 try-catch（单个 preset 出错不影响整体）
+4. 从 `Settings.default.xml` 中移除不兼容的 `Images to Video/To Mp4` preset（根治）
+
+### 3.3 ✅ v2.2 转换卡死 / FFmpeg 残留（已在 v2.2.7 修复，PR #732 合入）
 
 | # | 场景 |
 |---|---|
@@ -154,8 +177,8 @@ ConversionJob_FFMPEG.cs
 | #711 | mp4→mp3 卡死 |
 
 **修复任务（T-P）**：
-- [ ] **T-P1** 合并 PR #732（直接修根因）
-- [ ] **T-P2** 在取消按钮中向 ffmpeg stdin 发送 `q` 实现优雅终止；超时 `Process.Kill(entireProcessTree: true)`
+- [x] **T-P1** 合并 PR #732（直接修根因）— ✅ v2.2.7 已合入
+- [x] **T-P2** 在取消按钮中向 ffmpeg stdin 发送 `q` 实现优雅终止；超时 `Process.Kill(entireProcessTree: true)` — ✅ v2.2.7 已实现
 - [ ] **T-P3** 任务完成 / 异常 / 取消三路径统一释放文件句柄
 - [ ] **T-P4** 增加取消回归测试（启动 mp4 转码 5 秒后取消，断言无 ffmpeg 残留 + 输出可删）
 
@@ -365,15 +388,16 @@ ConversionJob_FFMPEG.cs
 
 ## 七、建议的修复迭代顺序
 
-### 🚀 Sprint 1：发布 **2.2.1 hotfix**（1 周内）
+### 🚀 Sprint 1：发布 **v2.2.8 hotfix**（进行中）
 
 > 目标：合并他人已写好的 PR，快速解决 v2.2 回归与更新崩溃
 
-1. **合并 PR #732**（FFmpeg 死锁）→ 一次性修复 7 个卡死 issue
-2. **Cherry-pick PR #699**（UpgradeService null 修复）
-3. **T-U**：更新 `version.xml` 中的 URL 指向 fork releases
-4. **T-P2 ~ T-P4**：补充 ffmpeg 优雅终止 + 进程清理
-5. 发 **2.2.1**
+1. ✅ ~~**合并 PR #732**（FFmpeg 死锁）→ 一次性修复 7 个卡死 issue~~（已在 v2.2.7 中完成）
+2. ✅ ~~**Cherry-pick PR #699**（UpgradeService null 修复）~~（已修复：CheckForUpgrade await null task 防护）
+3. ✅ ~~**T-U**：更新 `version.xml` 中的 URL 指向 fork releases~~（已完成）
+4. ✅ ~~**T-U2**：UpgradeService.BaseURI 指向 fork 仓库~~（原指向 Tichau/FileConverter）
+5. ✅ ~~**T-P2 ~ T-P4**：补充 ffmpeg 优雅终止 + 进程清理~~（已在 v2.2.7 中完成）
+6. - [ ] 发布 **v2.2.8**
 
 ### 🚀 Sprint 2：发布 **2.3.0 "Settings Fix"**（2-3 周）
 
@@ -529,4 +553,4 @@ ConversionJob_FFMPEG.cs
 
 ---
 
-_最后更新：2026-04-27_
+_最后更新：2026-04-30_
