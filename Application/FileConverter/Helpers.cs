@@ -32,6 +32,7 @@ namespace FileConverter
             {
                 case "aac":
                 case "aiff":
+                case "alac":
                 case "ape":
                 case "cda":
                 case "flac":
@@ -295,6 +296,7 @@ namespace FileConverter
             switch (outputType)
             {
                 case OutputType.Aac:
+                case OutputType.Alac:
                 case OutputType.Flac:
                 case OutputType.Mp3:
                 case OutputType.Ogg:

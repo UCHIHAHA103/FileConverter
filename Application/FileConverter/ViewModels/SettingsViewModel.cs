@@ -76,6 +76,7 @@ namespace FileConverter.ViewModels
             outputTypeViewModels.Add(new OutputTypeViewModel(OutputType.Ogg));
             outputTypeViewModels.Add(new OutputTypeViewModel(OutputType.Mp3));
             outputTypeViewModels.Add(new OutputTypeViewModel(OutputType.Aac));
+            outputTypeViewModels.Add(new OutputTypeViewModel(OutputType.Alac));
             outputTypeViewModels.Add(new OutputTypeViewModel(OutputType.Flac));
             outputTypeViewModels.Add(new OutputTypeViewModel(OutputType.Wav));
             outputTypeViewModels.Add(new OutputTypeViewModel(OutputType.Mkv));

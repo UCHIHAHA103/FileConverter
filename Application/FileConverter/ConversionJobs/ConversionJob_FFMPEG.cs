@@ -137,6 +137,21 @@ namespace FileConverter.ConversionJobs
 
                     break;
 
+                case OutputType.Alac:
+                    {
+                        string channelArgs = ConversionJob_FFMPEG.ComputeAudioChannelArgs(this.ConversionPreset);
+
+                        // ALAC is lossless — no bitrate/quality setting needed.
+                        // -c:v copy preserves embedded cover art from the input file.
+                        string encoderArgs = $"-c:a alac -c:v copy {channelArgs}";
+
+                        string arguments = $"{baseArgs} -i \"{this.InputFilePath}\" {encoderArgs} \"{this.OutputFilePath}\"";
+
+                        this.ffmpegArgumentStringByPass.Add(new FFMpegPass(arguments));
+                    }
+
+                    break;
+
                 case OutputType.Avi:
                     {
                         // https://trac.ffmpeg.org/wiki/Encode/MPEG-4

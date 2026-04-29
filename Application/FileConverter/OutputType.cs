@@ -7,6 +7,7 @@ namespace FileConverter
         None,
 
         Aac,
+        Alac,
         Avi,
         Avif,
         Flac,

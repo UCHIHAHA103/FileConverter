@@ -621,6 +621,9 @@
             <DataTrigger Binding="{Binding OutputType}" Value="Aac">
                 <Setter Property="ContentTemplate" Value="{StaticResource AacSettingsDataTemplate}"/>
             </DataTrigger>
+            <DataTrigger Binding="{Binding OutputType}" Value="Alac">
+                <Setter Property="ContentTemplate" Value="{StaticResource FlacSettingsDataTemplate}"/>
+            </DataTrigger>
             <DataTrigger Binding="{Binding OutputType}" Value="Avi">
                 <Setter Property="ContentTemplate" Value="{StaticResource AviSettingsDataTemplate}"/>
             </DataTrigger>
