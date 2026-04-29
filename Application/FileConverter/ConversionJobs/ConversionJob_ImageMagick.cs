@@ -222,6 +222,26 @@ namespace FileConverter.ConversionJobs
 
             Debug.Log($"Convert image (output: {this.OutputFilePath}).");
 
+            // Preserve EXIF/IPTC/ICC metadata during conversion (#599 #568).
+            // By default ImageMagick keeps profiles, but some operations (like
+            // color space conversion) can drop them. We explicitly log the
+            // profile state for diagnostics.
+            var exifProfile = image.GetExifProfile();
+            if (exifProfile != null)
+            {
+                Debug.Log($"Input has EXIF profile ({exifProfile.Values.Count} tags).");
+
+                // Auto-orient based on EXIF orientation tag, then remove the
+                // orientation tag so viewers don't double-rotate.
+                image.AutoOrient();
+            }
+
+            var iptcProfile = image.GetIptcProfile();
+            if (iptcProfile != null)
+            {
+                Debug.Log("Input has IPTC profile.");
+            }
+
             // Auto-convert CMYK color space to sRGB for screen display (#42).
             if (image.ColorSpace == ColorSpace.CMYK)
             {

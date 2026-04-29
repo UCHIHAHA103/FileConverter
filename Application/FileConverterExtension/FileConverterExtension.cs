@@ -28,6 +28,52 @@ namespace FileConverterExtension
 
         private HashSet<string> extensionCache = new HashSet<string>();
 
+        // Cached bitmaps to avoid re-creating Icon objects on every right-click (#675).
+        private static Bitmap cachedAppIcon;
+        private static Bitmap cachedFolderIcon;
+        private static Bitmap cachedPresetIcon;
+        private static Bitmap cachedSettingsIcon;
+
+        private static Bitmap GetAppIcon()
+        {
+            if (cachedAppIcon == null)
+            {
+                cachedAppIcon = new Icon(Properties.Resources.ApplicationIcon, SystemInformation.SmallIconSize).ToBitmap();
+            }
+
+            return cachedAppIcon;
+        }
+
+        private static Bitmap GetFolderIcon()
+        {
+            if (cachedFolderIcon == null)
+            {
+                cachedFolderIcon = new Icon(Properties.Resources.FolderIcon, SystemInformation.SmallIconSize).ToBitmap();
+            }
+
+            return cachedFolderIcon;
+        }
+
+        private static Bitmap GetPresetIcon()
+        {
+            if (cachedPresetIcon == null)
+            {
+                cachedPresetIcon = new Icon(Properties.Resources.PresetIcon, SystemInformation.SmallIconSize).ToBitmap();
+            }
+
+            return cachedPresetIcon;
+        }
+
+        private static Bitmap GetSettingsIcon()
+        {
+            if (cachedSettingsIcon == null)
+            {
+                cachedSettingsIcon = new Icon(Properties.Resources.SettingsIcon, SystemInformation.SmallIconSize).ToBitmap();
+            }
+
+            return cachedSettingsIcon;
+        }
+
         private class MenuEntry
         {
             public PresetReference PresetReference;
@@ -115,7 +161,7 @@ namespace FileConverterExtension
                 ToolStripMenuItem fileConverterItem = new ToolStripMenuItem
                 {
                     Text = "File Converter",
-                    Image = new Icon(Properties.Resources.ApplicationIcon, SystemInformation.SmallIconSize).ToBitmap(),
+                    Image = GetAppIcon(),
                 };
 
                 int menuItemIndex = 0;
@@ -137,7 +183,7 @@ namespace FileConverterExtension
                                     {
                                         Name = folder,
                                         Text = folder,
-                                        Image = new Icon(Properties.Resources.FolderIcon, SystemInformation.SmallIconSize).ToBitmap(),
+                                        Image = GetFolderIcon(),
                                     };
 
                                     root.DropDownItems.Add(folderItem);
@@ -171,7 +217,7 @@ namespace FileConverterExtension
 
                         if (displayPresetIcons)
                         {
-                            subItem.Image = new Icon(Properties.Resources.PresetIcon, SystemInformation.SmallIconSize).ToBitmap();
+                            subItem.Image = GetPresetIcon();
                         }
 
                         root.DropDownItems.Add(subItem);
@@ -192,7 +238,7 @@ namespace FileConverterExtension
                     ToolStripMenuItem subItem = new ToolStripMenuItem
                     {
                         Text = "Configure presets...",
-                        Image = new Icon(Properties.Resources.SettingsIcon, SystemInformation.SmallIconSize).ToBitmap(),
+                        Image = GetSettingsIcon(),
                     };
 
                     fileConverterItem.DropDownItems.Add(subItem);
