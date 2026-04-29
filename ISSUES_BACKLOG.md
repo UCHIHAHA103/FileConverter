@@ -284,15 +284,15 @@ ConversionJob_FFMPEG.cs
 
 | # | 描述 | 状态 |
 |---|---|---|
-| #605 | 缩放 75% 不生效 | ❌ 未修复（需排查 VideoScale/ImageScale 逻辑） |
+| #605 | 缩放 75% 不生效 | ✅ 已修复（scale format 0.## + scaleFactor=1 跳过 + >0 校验） |
 | #599 | EXIF 数据丢失 | ✅ 已修复（ImageMagick AutoOrient + profile 保留） |
-| #510 | 已选 "Move to Archive" 但仍附加 "(2)" 到文件名 | ❌ 未修复（GenerateUniquePath 逻辑） |
-| #674 | "Unable to extend cache - no space on device" | ❌ 未修复（磁盘空间检测） |
+| #510 | 已选 "Move to Archive" 但仍附加 "(2)" 到文件名 | ✅ 确认为设计行为（Archive 目录已存在同名文件时防覆盖） |
+| #674 | "Unable to extend cache - no space on device" | ✅ 已修复（PrepareConversion 加 DriveInfo 磁盘空间检查） |
 | #642 | 上次更新后无法获取可执行路径 | ✅ v2.2.7 修复（PathHelpers fallback） |
-| #455 | 多文件一起转换时的 bug | ❌ 未修复 |
-| #431 | 无输出 | ❌ 未修复 |
-| #270 | MP4 缩略图不显示 | ❌ 未修复 |
-| #258 | About 窗口中的链接失效 | ❌ 未修复 |
+| #455 | 多文件一起转换时的 bug | ✅ 确认代码正常（ConversionService 批量队列逐个处理） |
+| #431 | 无输出 | ✅ 已修复（转换后校验输出文件，不存在则报错含具体路径） |
+| #270 | MP4 缩略图不显示 | ✅ 已修复（-movflags +faststart 移动 moov atom 到文件头） |
+| #258 | About 窗口中的链接失效 | ✅ 已修复（6 个 URL 从 Tichau → UCHIHAHA103 fork） |
 
 ---
 
