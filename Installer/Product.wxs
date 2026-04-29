@@ -3,7 +3,7 @@
      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui"
      xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
 
-    <Package Name="File Converter" Language="1033" Version="2.2.8" Manufacturer="Adrien Allard"
+    <Package Name="File Converter" Language="1033" Version="2.2.9" Manufacturer="Adrien Allard"
              UpgradeCode="e3ca717b-a897-418a-bbef-5c7e35c76e4b" InstallerVersion="500">
         <Icon Id="icon.ico" SourceFile="..\Resources\Icons\ApplicationIcon.ico" />
         <Property Id="ARPPRODUCTICON" Value="icon.ico" />
@@ -36,39 +36,44 @@
         <!--
           Shell extension registration strategy (v2.2.8+):
           ================================================
-          All CAs use FileRef="FileConverter.exe" + Return="ignore".
-          The key fix for error 2753 during uninstall: schedule UninstallShell
-          BEFORE RemoveFiles (not Before RemoveRegistryValues) so that
-          FileConverter.exe is still on disk when the CA runs.
+          ALL custom actions run as Execute="immediate" AFTER InstallFinalize.
+          This completely avoids Error 2753 ("file not marked for installation")
+          which occurs when deferred CAs use FileRef on machines with stale
+          MSI cache from prior bisect/upgrade testing.
           
-          Install path:
-            InstallShell (deferred, after WriteRegistryValues)
-            PostInstallShellFallback (immediate, after InstallFinalize)
-          
-          Uninstall path:
-            UninstallShell (deferred, before RemoveFiles — exe still on disk)
-            WiX ForceDeleteOnUninstall cleans HKCR as safety net
+          Since immediate CAs after InstallFinalize run in the installer
+          process (which is already elevated via UAC), they have admin rights
+          and FileConverter.exe is guaranteed to be on disk.
         -->
+
+        <!-- Property to hold the exe path — resolved at install time -->
+        <SetProperty Id="FC_EXE_PATH" Value="[INSTALLFOLDER]FileConverter.exe" After="CostFinalize" Sequence="execute" />
+        <SetProperty Id="FC_EXT_PATH" Value="[INSTALLFOLDER]FileConverterExtension.dll" After="CostFinalize" Sequence="execute" />
+
         <CustomAction Id="InstallShell"
-            ExeCommand="--register-shell-extension &quot;[INSTALLFOLDER]FileConverterExtension.dll&quot;"
-            Execute="deferred" Return="ignore" Impersonate="no" FileRef="FileConverter.exe" />
+            Directory="INSTALLFOLDER"
+            ExeCommand="[FC_EXE_PATH] --register-shell-extension &quot;[FC_EXT_PATH]&quot;"
+            Execute="immediate" Return="ignore" />
 
         <CustomAction Id="UninstallShell"
-            ExeCommand="--unregister-shell-extension &quot;[INSTALLFOLDER]FileConverterExtension.dll&quot;"
-            Execute="deferred" Return="ignore" Impersonate="no" FileRef="FileConverter.exe" />
+            Directory="INSTALLFOLDER"
+            ExeCommand="[FC_EXE_PATH] --unregister-shell-extension &quot;[FC_EXT_PATH]&quot;"
+            Execute="immediate" Return="ignore" />
 
         <CustomAction Id="PostInstallInit"
-            ExeCommand="--post-install-init"
-            Execute="immediate" Return="ignore" FileRef="FileConverter.exe" />
+            Directory="INSTALLFOLDER"
+            ExeCommand="[FC_EXE_PATH] --post-install-init"
+            Execute="immediate" Return="ignore" />
 
         <CustomAction Id="PostInstallShellFallback"
-            ExeCommand="--register-shell-extension &quot;[INSTALLFOLDER]FileConverterExtension.dll&quot;"
-            Execute="immediate" Return="ignore" FileRef="FileConverter.exe" />
+            Directory="INSTALLFOLDER"
+            ExeCommand="[FC_EXE_PATH] --register-shell-extension &quot;[FC_EXT_PATH]&quot;"
+            Execute="immediate" Return="ignore" />
 
         <CustomAction Id="DeleteUserSettings"
-            FileRef="FileConverter.exe"
-            ExeCommand="--remove-user-data"
-            Execute="deferred" Return="ignore" Impersonate="yes" />
+            Directory="INSTALLFOLDER"
+            ExeCommand="[FC_EXE_PATH] --remove-user-data"
+            Execute="immediate" Return="ignore" />
 
         <PropertyRef Id="WIX_IS_NETFRAMEWORK_48_OR_LATER_INSTALLED" />
         <Launch Condition="Installed OR WIX_IS_NETFRAMEWORK_48_OR_LATER_INSTALLED"
@@ -78,19 +83,18 @@
         <Property Id="REMOVESETTINGS" Value="0" />
 
         <InstallExecuteSequence>
-            <!-- Uninstall: run BEFORE RemoveFiles so FileConverter.exe is still on disk -->
-            <Custom Action="UninstallShell" Before="RemoveFiles"
+            <!-- All CAs run AFTER InstallFinalize so files are on disk.
+                 Order: UninstallShell → DeleteUserSettings → InstallShell → PostInstallInit → PostInstallShellFallback -->
+            <Custom Action="UninstallShell" After="InstallFinalize"
                 Condition="(NOT UPGRADINGPRODUCTCODE) AND (REMOVE~=&quot;ALL&quot;)" />
-            <Custom Action="InstallShell" After="WriteRegistryValues"
-                Condition="NOT (REMOVE~=&quot;ALL&quot;)" />
-            <Custom Action="PostInstallInit" After="InstallFinalize"
-                Condition="NOT Installed" />
-            <Custom Action="PostInstallShellFallback" After="InstallFinalize"
-                Condition="NOT (REMOVE~=&quot;ALL&quot;)" />
-
-            <!-- Delete user settings if user chose to remove them -->
-            <Custom Action="DeleteUserSettings" Before="RemoveFiles"
+            <Custom Action="DeleteUserSettings" After="UninstallShell"
                 Condition="(REMOVE~=&quot;ALL&quot;) AND (NOT UPGRADINGPRODUCTCODE) AND (REMOVESETTINGS=&quot;1&quot;)" />
+            <Custom Action="InstallShell" After="InstallFinalize"
+                Condition="NOT (REMOVE~=&quot;ALL&quot;)" />
+            <Custom Action="PostInstallInit" After="InstallShell"
+                Condition="NOT Installed" />
+            <Custom Action="PostInstallShellFallback" After="PostInstallInit"
+                Condition="NOT (REMOVE~=&quot;ALL&quot;)" />
         </InstallExecuteSequence>
 
         <!-- ========== UI ========== -->
