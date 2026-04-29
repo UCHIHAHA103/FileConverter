@@ -372,21 +372,13 @@ ConversionJob_FFMPEG.cs
 | #396 | 卸载后仍残留文件 | ✅ v2.2.7 修复（三层清理 + ForceDeleteOnUninstall + uninstall.exe） |
 | **NEW** | **卸载不干净 + 缺少 uninstall.exe** | ✅ v2.2.7 修复 |
 
-#### 🔴 卸载优化需求（用户反馈 2026-04-28）
+#### 🔴 卸载优化需求（用户反馈 2026-04-28）— ✅ 已修复
 
-**现状问题**：
-1. 没有独立的 `uninstall.exe`，用户需要通过控制面板或重新打开 MSI 选 Remove
-2. 卸载后注册表残留大量项（HKCR\CLSID\{AF9B72B5...}、HKCR\*\shellex\ContextMenuHandlers\FileConverterExtension、HKCU\Software\FileConverter 等）
-3. DOpus 等第三方文件管理器的 shell ext 缓存可能导致卸载后仍有残留行为
-
-**目标**：
-1. 安装目录下放 `uninstall.exe`，双击直接触发 MSI 卸载（`msiexec /x {ProductCode} /qr`）
-2. 控制面板"卸载"和 `uninstall.exe` 使用同一机制
-3. 卸载时彻底清理：
-   - `UninstallShell` CA（RegAsm /u）清理 COM 注册
-   - Product.wxs 的 `RemoveRegistryValues` 清理 HKCU\Software\FileConverter
-   - 可选：卸载时提供"清除用户数据"选项（Settings.user.xml、Diagnostics 日志等）
-4. 安装时写入 `ARPINSTALLLOCATION` 让控制面板的"安装位置"字段正确显示
+**已解决问题**：
+1. ✅ uninstall.exe 改为 WinExe（不再显示 CMD 窗口），用 MessageBox 提示
+2. ✅ 控制面板卸载报错 2753 — 根因：UninstallShell CA 调度在 RemoveFiles 之后（exe 已被删），现改为 Before RemoveFiles
+3. ✅ 三层注册表清理保障（RegAsm + CleanupShellExtensionRegistry + ForceDeleteOnUninstall）
+4. ✅ 卸载时提供"清除用户数据"选项（RemoveSettingsDlg 对话框）
 
 ### 6.2 更新器
 
