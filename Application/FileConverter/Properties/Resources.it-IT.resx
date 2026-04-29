@@ -500,7 +500,7 @@ usa maj per il maiuscolo</value>
     <value>**Questo programma è un software gratuito**.</value>
   </data>
   <data name="LicenceHeader2" xml:space="preserve">
-    <value>È possibile ridistribuirlo e/o modificarlo secondo i termini della GNU General Public License.value>
+    <value>È possibile ridistribuirlo e/o modificarlo secondo i termini della GNU General Public License.</value>
   </data>
   <data name="LicenceHeader3" xml:space="preserve">
     <value>Questo programma è distribuito nella speranza che possa essere utile, ma SENZA ALCUNA GARANZIA. Per maggiori dettagli, consultare la GNU General Public License (disponibile nella cartella di installazione: `LICENSE.md`).</value>
