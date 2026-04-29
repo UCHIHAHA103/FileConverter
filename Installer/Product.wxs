@@ -34,31 +34,32 @@
 
         <!-- ========== Custom Actions ========== -->
         <!--
-          Shell extension registration strategy (v2.2.9):
-          ================================================
-          NO deferred CAs. NO FileRef. These caused persistent Error 2753
-          on machines with stale MSI cache from prior version installs.
-
-          Install: two immediate CAs after InstallFinalize (files on disk, process elevated).
-          Uninstall: WiX ForceDeleteOnUninstall handles HKCR cleanup — no CA needed.
-          PostInstallInit: immediate after InstallFinalize.
-          DeleteUserSettings: immediate after InstallFinalize.
+          Shell extension registration strategy (v2.2.9+):
+          =================================================
+          All CAs use Type 34 (Directory + ExeCommand) with Execute="immediate"
+          scheduled AFTER InstallFinalize. At that point:
+            - Files are on disk (InstallFiles completed)
+            - Installer process is elevated (UAC approved)
+            - No dependency on MSI FileRef resolution (avoids Error 2753)
+          
+          ExeCommand MUST use [INSTALLFOLDER] prefix for the exe path —
+          plain "FileConverter.exe" causes Error 1721 (exe not found).
         -->
 
         <CustomAction Id="RegisterShell"
             Execute="immediate" Return="ignore"
             Directory="INSTALLFOLDER"
-            ExeCommand="FileConverter.exe --register-shell-extension &quot;[INSTALLFOLDER]FileConverterExtension.dll&quot;" />
+            ExeCommand="&quot;[INSTALLFOLDER]FileConverter.exe&quot; --register-shell-extension &quot;[INSTALLFOLDER]FileConverterExtension.dll&quot;" />
 
         <CustomAction Id="PostInstallInit"
             Execute="immediate" Return="ignore"
             Directory="INSTALLFOLDER"
-            ExeCommand="FileConverter.exe --post-install-init" />
+            ExeCommand="&quot;[INSTALLFOLDER]FileConverter.exe&quot; --post-install-init" />
 
         <CustomAction Id="DeleteUserSettings"
             Execute="immediate" Return="ignore"
             Directory="INSTALLFOLDER"
-            ExeCommand="FileConverter.exe --remove-user-data" />
+            ExeCommand="&quot;[INSTALLFOLDER]FileConverter.exe&quot; --remove-user-data" />
 
         <PropertyRef Id="WIX_IS_NETFRAMEWORK_48_OR_LATER_INSTALLED" />
         <Launch Condition="Installed OR WIX_IS_NETFRAMEWORK_48_OR_LATER_INSTALLED"
