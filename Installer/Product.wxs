@@ -219,6 +219,11 @@
                 <File Id="SharpShell.dll" Source="$(var.FileConverterExtension.TargetDir)SharpShell.dll" KeyPath="yes" Checksum="yes" />
             </Component>
 
+            <!-- Uninstaller -->
+            <Component Guid="{C1D2E3F4-A5B6-7890-CDEF-123456789ABC}">
+                <File Id="uninstall.exe" Source="$(var.FileConverter.TargetDir)uninstall.exe" KeyPath="yes" Checksum="yes" />
+            </Component>
+
             <!-- Third parties -->
             <Component Guid="{bae11ca4-0842-46f0-b0e5-95ecc1c994fc}">
                 <File Id="CommunityToolkit.Mvvm.dll" Source="$(var.FileConverter.TargetDir)CommunityToolkit.Mvvm.dll" KeyPath="yes" Checksum="yes" />
@@ -312,6 +317,17 @@
                 <RegistryValue Root="HKCU" Key="Software\FileConverter" Name="CleanupMarker"
                                Type="string" Value="1" KeyPath="yes" />
                 <util:RemoveFolderEx On="uninstall" Property="INSTALLFOLDER" />
+            </Component>
+
+            <!-- Explicit cleanup of COM/shell extension registry keys on uninstall.
+                 These are written by RegAsm (via InstallShell CA) outside MSI's tracking.
+                 By declaring them here with ForceDeleteOnUninstall, MSI's RemoveRegistryValues
+                 action will clean them even if the UninstallShell CA fails. -->
+            <Component Id="ShellExtCleanup" Guid="{D7E8F9A0-B1C2-3D4E-5F60-718293A4B5C6}">
+                <RegistryValue Root="HKCR" Key="CLSID\{AF9B72B5-F4E4-44B0-A3D9-B55B748EFE90}"
+                               Name="InstalledBy" Type="string" Value="FileConverter" KeyPath="yes" />
+                <RegistryKey Root="HKCR" Key="CLSID\{AF9B72B5-F4E4-44B0-A3D9-B55B748EFE90}" ForceDeleteOnUninstall="yes" />
+                <RegistryKey Root="HKCR" Key="*\shellex\ContextMenuHandlers\FileConverterExtension" ForceDeleteOnUninstall="yes" />
             </Component>
         </ComponentGroup>
     </Fragment>

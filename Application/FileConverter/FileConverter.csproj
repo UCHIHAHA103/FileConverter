@@ -423,6 +423,9 @@
 copy /Y "$(SolutionDir)Middleware\gs\gsdll64.dll" "$(TargetDir)gsdll64.dll"
 copy /Y "$(SolutionDir)Middleware\gs\gswin64c.exe" "$(TargetDir)gswin64c.exe"
 copy /Y "$(ProjectDir)Settings.default.xml" "$(TargetDir)Settings.default.xml"
+rem Copy uninstaller if it was built
+if exist "$(SolutionDir)Application\Uninstaller\bin\$(Platform)\$(Configuration)\uninstall.exe" copy /Y "$(SolutionDir)Application\Uninstaller\bin\$(Platform)\$(Configuration)\uninstall.exe" "$(TargetDir)uninstall.exe"
+if exist "$(SolutionDir)Application\Uninstaller\bin\$(Configuration)\uninstall.exe" copy /Y "$(SolutionDir)Application\Uninstaller\bin\$(Configuration)\uninstall.exe" "$(TargetDir)uninstall.exe"
 rem Copy satellite assemblies (FileConverter.resources.dll) from each &lt;culture&gt; folder
 rem into Languages\&lt;culture&gt; for installer packaging. We now COPY (not MOVE) so the
 rem original .NET default layout is preserved, which lets the application load

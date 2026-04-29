@@ -147,27 +147,79 @@ namespace FileConverter
                 return false;
             }
 
-            if (!File.Exists(shellExtensionPath))
-            {
-                Diagnostics.Debug.LogError($"Shell extension {shellExtensionPath} does not exists.");
-                return false;
-            }
+            bool regasmSuccess = false;
 
-            Diagnostics.Debug.Log($"Unregister and uninstall shell extension: {shellExtensionPath}.");
-
-            var regasm = new RegAsm();
-            var success = regasm.Unregister64(shellExtensionPath);
-            if (success)
+            if (File.Exists(shellExtensionPath))
             {
-                Diagnostics.Debug.Log($"{shellExtensionPath} uninstalled.");
-                Diagnostics.Debug.Log(regasm.StandardOutput);
-                return true;
+                Diagnostics.Debug.Log($"Unregister and uninstall shell extension: {shellExtensionPath}.");
+
+                var regasm = new RegAsm();
+                regasmSuccess = regasm.Unregister64(shellExtensionPath);
+                if (regasmSuccess)
+                {
+                    Diagnostics.Debug.Log($"{shellExtensionPath} uninstalled.");
+                    Diagnostics.Debug.Log(regasm.StandardOutput);
+                }
+                else
+                {
+                    Diagnostics.Debug.LogError(errorCode: 0x05, $"{shellExtensionPath} failed to uninstall via RegAsm.");
+                    Diagnostics.Debug.LogError(regasm.StandardError);
+                }
             }
             else
             {
-                Diagnostics.Debug.LogError(errorCode: 0x05, $"{shellExtensionPath} failed to uninstall.");
-                Diagnostics.Debug.LogError(regasm.StandardError);
-                return false;
+                Diagnostics.Debug.Log($"Shell extension DLL not found ({shellExtensionPath}), skipping RegAsm, will clean registry directly.");
+            }
+
+            // Fallback: manually clean up COM registry entries that RegAsm may have missed.
+            CleanupShellExtensionRegistry();
+
+            return regasmSuccess;
+        }
+
+        /// <summary>
+        /// Manually delete all known COM/shell extension registry entries for FileConverterExtension.
+        /// This ensures a clean uninstall even if RegAsm /u fails or the DLL is already deleted.
+        /// </summary>
+        private static void CleanupShellExtensionRegistry()
+        {
+            const string clsid = "{AF9B72B5-F4E4-44B0-A3D9-B55B748EFE90}";
+
+            string[] keysToDelete = new[]
+            {
+                $@"CLSID\{clsid}",
+                $@"*\shellex\ContextMenuHandlers\FileConverterExtension",
+            };
+
+            foreach (string subKey in keysToDelete)
+            {
+                try
+                {
+                    Microsoft.Win32.Registry.ClassesRoot.DeleteSubKeyTree(subKey, false);
+                    Diagnostics.Debug.Log($"Cleaned up registry: HKCR\\{subKey}");
+                }
+                catch (System.Exception ex)
+                {
+                    Diagnostics.Debug.Log($"Could not delete HKCR\\{subKey}: {ex.Message}");
+                }
+            }
+
+            // Also clean Approved list entry if present
+            try
+            {
+                using (var approvedKey = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
+                    @"SOFTWARE\Microsoft\Windows\CurrentVersion\Shell Extensions\Approved", true))
+                {
+                    if (approvedKey != null)
+                    {
+                        approvedKey.DeleteValue(clsid, false);
+                        Diagnostics.Debug.Log($"Cleaned up Shell Extensions\\Approved\\{clsid}");
+                    }
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Diagnostics.Debug.Log($"Could not clean Approved list: {ex.Message}");
             }
         }
 
