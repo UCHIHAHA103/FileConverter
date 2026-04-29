@@ -329,10 +329,17 @@ namespace FileConverter
                     switch (parameterTitle)
                     {
                         case "post-install-init":
-                            ISettingsService settingsService = Ioc.Default.GetRequiredService<ISettingsService>();
-                            if (!settingsService.PostInstallationInitialization())
+                            try
                             {
-                                Debug.LogError(errorCode: 0x0F, $"Failed to execute post install initialization.");
+                                ISettingsService settingsService = Ioc.Default.GetRequiredService<ISettingsService>();
+                                if (!settingsService.PostInstallationInitialization())
+                                {
+                                    Diagnostics.Debug.Log("PostInstallInit returned false (non-fatal, install continues).");
+                                }
+                            }
+                            catch (System.Exception ex)
+                            {
+                                Diagnostics.Debug.Log($"PostInstallInit error (non-fatal): {ex.Message}");
                             }
 
                             Application.AskForShutdown();

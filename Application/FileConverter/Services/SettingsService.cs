@@ -53,13 +53,13 @@ namespace FileConverter.Services
                 }
                 catch (Exception exception)
                 {
-                    Debug.LogError($"Fail to load file converter default settings. {exception.Message}");
+                    Debug.Log($"Fail to load file converter default settings. {exception.Message}");
                     return false;
                 }
             }
             else
             {
-                Debug.LogError($"Default settings not found at path {FileConverterExtension.PathHelpers.DefaultSettingsFilePath}. You should try to reinstall the application.");
+                Debug.Log($"Default settings not found at path {FileConverterExtension.PathHelpers.DefaultSettingsFilePath}. You should try to reinstall the application.");
                 return false;
             }
 
