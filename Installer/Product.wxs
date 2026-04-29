@@ -34,46 +34,31 @@
 
         <!-- ========== Custom Actions ========== -->
         <!--
-          Shell extension registration strategy (v2.2.8+):
+          Shell extension registration strategy (v2.2.9):
           ================================================
-          ALL custom actions run as Execute="immediate" AFTER InstallFinalize.
-          This completely avoids Error 2753 ("file not marked for installation")
-          which occurs when deferred CAs use FileRef on machines with stale
-          MSI cache from prior bisect/upgrade testing.
-          
-          Since immediate CAs after InstallFinalize run in the installer
-          process (which is already elevated via UAC), they have admin rights
-          and FileConverter.exe is guaranteed to be on disk.
+          NO deferred CAs. NO FileRef. These caused persistent Error 2753
+          on machines with stale MSI cache from prior version installs.
+
+          Install: two immediate CAs after InstallFinalize (files on disk, process elevated).
+          Uninstall: WiX ForceDeleteOnUninstall handles HKCR cleanup — no CA needed.
+          PostInstallInit: immediate after InstallFinalize.
+          DeleteUserSettings: immediate after InstallFinalize.
         -->
 
-        <!-- Property to hold the exe path — resolved at install time -->
-        <SetProperty Id="FC_EXE_PATH" Value="[INSTALLFOLDER]FileConverter.exe" After="CostFinalize" Sequence="execute" />
-        <SetProperty Id="FC_EXT_PATH" Value="[INSTALLFOLDER]FileConverterExtension.dll" After="CostFinalize" Sequence="execute" />
-
-        <CustomAction Id="InstallShell"
+        <CustomAction Id="RegisterShell"
+            Execute="immediate" Return="ignore"
             Directory="INSTALLFOLDER"
-            ExeCommand="[FC_EXE_PATH] --register-shell-extension &quot;[FC_EXT_PATH]&quot;"
-            Execute="immediate" Return="ignore" />
-
-        <CustomAction Id="UninstallShell"
-            Directory="INSTALLFOLDER"
-            ExeCommand="[FC_EXE_PATH] --unregister-shell-extension &quot;[FC_EXT_PATH]&quot;"
-            Execute="immediate" Return="ignore" />
+            ExeCommand="FileConverter.exe --register-shell-extension &quot;[INSTALLFOLDER]FileConverterExtension.dll&quot;" />
 
         <CustomAction Id="PostInstallInit"
+            Execute="immediate" Return="ignore"
             Directory="INSTALLFOLDER"
-            ExeCommand="[FC_EXE_PATH] --post-install-init"
-            Execute="immediate" Return="ignore" />
-
-        <CustomAction Id="PostInstallShellFallback"
-            Directory="INSTALLFOLDER"
-            ExeCommand="[FC_EXE_PATH] --register-shell-extension &quot;[FC_EXT_PATH]&quot;"
-            Execute="immediate" Return="ignore" />
+            ExeCommand="FileConverter.exe --post-install-init" />
 
         <CustomAction Id="DeleteUserSettings"
+            Execute="immediate" Return="ignore"
             Directory="INSTALLFOLDER"
-            ExeCommand="[FC_EXE_PATH] --remove-user-data"
-            Execute="immediate" Return="ignore" />
+            ExeCommand="FileConverter.exe --remove-user-data" />
 
         <PropertyRef Id="WIX_IS_NETFRAMEWORK_48_OR_LATER_INSTALLED" />
         <Launch Condition="Installed OR WIX_IS_NETFRAMEWORK_48_OR_LATER_INSTALLED"
@@ -83,18 +68,15 @@
         <Property Id="REMOVESETTINGS" Value="0" />
 
         <InstallExecuteSequence>
-            <!-- All CAs run AFTER InstallFinalize so files are on disk.
-                 Order: UninstallShell → DeleteUserSettings → InstallShell → PostInstallInit → PostInstallShellFallback -->
-            <Custom Action="UninstallShell" After="InstallFinalize"
-                Condition="(NOT UPGRADINGPRODUCTCODE) AND (REMOVE~=&quot;ALL&quot;)" />
-            <Custom Action="DeleteUserSettings" After="UninstallShell"
+            <!-- Install: register shell ext + init presets (after files are on disk) -->
+            <Custom Action="RegisterShell" After="InstallFinalize"
+                Condition="NOT (REMOVE~=&quot;ALL&quot;)" />
+            <Custom Action="PostInstallInit" After="RegisterShell"
+                Condition="NOT Installed AND NOT (REMOVE~=&quot;ALL&quot;)" />
+
+            <!-- Uninstall: user data cleanup only (HKCR cleaned by ForceDeleteOnUninstall) -->
+            <Custom Action="DeleteUserSettings" After="InstallFinalize"
                 Condition="(REMOVE~=&quot;ALL&quot;) AND (NOT UPGRADINGPRODUCTCODE) AND (REMOVESETTINGS=&quot;1&quot;)" />
-            <Custom Action="InstallShell" After="InstallFinalize"
-                Condition="NOT (REMOVE~=&quot;ALL&quot;)" />
-            <Custom Action="PostInstallInit" After="InstallShell"
-                Condition="NOT Installed" />
-            <Custom Action="PostInstallShellFallback" After="PostInstallInit"
-                Condition="NOT (REMOVE~=&quot;ALL&quot;)" />
         </InstallExecuteSequence>
 
         <!-- ========== UI ========== -->
@@ -115,8 +97,7 @@
 
         <UI>
             <ProgressText Action="InstallFiles" Template="File: [1],  Directory: [9],  Size: [6]" Message="Copying new files" />
-            <ProgressText Action="InstallShell" Message="Register shell extension to Windows Explorer" />
-            <ProgressText Action="UninstallShell" Message="Unregister shell extension from Windows Explorer" />
+            <ProgressText Action="RegisterShell" Message="Register shell extension to Windows Explorer" />
             <ProgressText Action="PostInstallInit" Message="Initialize conversion presets" />
             <ProgressText Action="DeleteUserSettings" Message="Removing user settings..." />
 
