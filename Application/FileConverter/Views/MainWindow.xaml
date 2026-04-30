@@ -55,13 +55,19 @@
         </Grid>
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" CanContentScroll="True">
-            <ItemsControl ItemsSource="{Binding ConversionJobs}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <controls:ConversionJobControl Margin="5"></controls:ConversionJobControl>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+            <Grid>
+                <ItemsControl ItemsSource="{Binding ConversionJobs}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <controls:ConversionJobControl Margin="5"></controls:ConversionJobControl>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <!-- Drag & drop hint (#518) — always visible as watermark -->
+                <TextBlock Text="📁 Drag &amp; Drop files here / 拖拽文件到此处" FontSize="16"
+                           Foreground="#30000000" FontWeight="Bold" IsHitTestVisible="False"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Grid>
         </ScrollViewer>
     </Grid>
 </Window>

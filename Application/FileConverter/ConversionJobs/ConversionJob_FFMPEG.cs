@@ -102,7 +102,8 @@ namespace FileConverter.ConversionJobs
             // Progress is still parsed from stderr via the legacy "size=... time=..." format.
             // Use -y to allow overwriting output files (#636); deduplication is handled by
             // GenerateUniquePath in PrepareConversion.
-            const string baseArgs = "-y";
+            // -y: allow overwrite (#636). -fflags +genpts: fix broken PTS in MKV/AVI (#748 #709).
+            const string baseArgs = "-y -fflags +genpts";
 
             bool customCommandEnabled = this.ConversionPreset.GetSettingsValue<bool>(ConversionPreset.ConversionSettingKeys.EnableFFMPEGCustomCommand);
             if (customCommandEnabled)
@@ -130,7 +131,7 @@ namespace FileConverter.ConversionJobs
 
                         // https://trac.ffmpeg.org/wiki/Encode/AAC
                         int audioEncodingBitrate = this.ConversionPreset.GetSettingsValue<int>(ConversionPreset.ConversionSettingKeys.AudioBitrate);
-                        string encoderArgs = $"-c:a aac -q:a {this.AACBitrateToQualityIndex(audioEncodingBitrate)} {channelArgs} {AACMetadataArgs}";
+                        string encoderArgs = $"-vn -c:a aac -q:a {this.AACBitrateToQualityIndex(audioEncodingBitrate)} {channelArgs} {AACMetadataArgs}";
 
                         string arguments = $"{baseArgs} -i \"{this.InputFilePath}\" {encoderArgs} \"{this.OutputFilePath}\"";
 
@@ -183,7 +184,7 @@ namespace FileConverter.ConversionJobs
                         string channelArgs = ConversionJob_FFMPEG.ComputeAudioChannelArgs(this.ConversionPreset);
 
                         // http://taer-naguur.blogspot.fr/2013/11/flac-audio-encoding-with-ffmpeg.html
-                        string encoderArgs = $"-compression_level 12 {channelArgs}";
+                        string encoderArgs = $"-vn -compression_level 12 {channelArgs}";
                         string arguments = $"{baseArgs} -i \"{this.InputFilePath}\" {encoderArgs} \"{this.OutputFilePath}\"";
 
                         this.ffmpegArgumentStringByPass.Add(new FFMpegPass(arguments));
@@ -262,11 +263,11 @@ namespace FileConverter.ConversionJobs
                         switch (encodingMode)
                         {
                             case EncodingMode.Mp3VBR:
-                                encoderArgs = $"-codec:a libmp3lame -q:a {this.MP3VBRBitrateToQualityIndex(encodingQuality)} {channelArgs} {MP3MetadataArgs}";
+                                encoderArgs = $"-vn -codec:a libmp3lame -q:a {this.MP3VBRBitrateToQualityIndex(encodingQuality)} {channelArgs} {MP3MetadataArgs}";
                                 break;
 
                             case EncodingMode.Mp3CBR:
-                                encoderArgs = $"-codec:a libmp3lame -b:a {encodingQuality}k {channelArgs} {MP3MetadataArgs}";
+                                encoderArgs = $"-vn -codec:a libmp3lame -b:a {encodingQuality}k {channelArgs} {MP3MetadataArgs}";
                                 break;
 
                             default:
@@ -353,6 +354,9 @@ namespace FileConverter.ConversionJobs
                         int audioEncodingBitrate = this.ConversionPreset.GetSettingsValue<int>(ConversionPreset.ConversionSettingKeys.AudioBitrate);
 
                         string transformArgs = ConversionJob_FFMPEG.ComputeTransformArgs(this.ConversionPreset);
+
+                        // Theora requires yuv420p pixel format (#678).
+                        transformArgs += (transformArgs.Length > 0 ? "," : string.Empty) + "format=yuv420p";
                         string videoFilteringArgs = ConversionJob_FFMPEG.Encapsulate("-vf", transformArgs);
 
                         string audioArgs = "-an";
@@ -380,7 +384,8 @@ namespace FileConverter.ConversionJobs
                         }
 
                         // http://www.howtogeek.com/203979/is-the-png-format-lossless-since-it-has-a-compression-parameter/
-                        string encoderArgs = $"-compression_level 100 {scaleArgs}";
+                        // -pix_fmt rgba preserves alpha/transparency channel (#676 #129).
+                        string encoderArgs = $"-pix_fmt rgba -compression_level 100 {scaleArgs}";
 
                         string arguments = $"{baseArgs} -i \"{this.InputFilePath}\" {encoderArgs} \"{this.OutputFilePath}\"";
 
@@ -394,7 +399,7 @@ namespace FileConverter.ConversionJobs
                         string channelArgs = ConversionJob_FFMPEG.ComputeAudioChannelArgs(this.ConversionPreset);
 
                         EncodingMode encodingMode = this.ConversionPreset.GetSettingsValue<EncodingMode>(ConversionPreset.ConversionSettingKeys.AudioEncodingMode);
-                        string encoderArgs = $"-acodec {this.WAVEncodingToCodecArgument(encodingMode)} {channelArgs}";
+                        string encoderArgs = $"-vn -acodec {this.WAVEncodingToCodecArgument(encodingMode)} {channelArgs}";
                         string arguments = $"{baseArgs} -i \"{this.InputFilePath}\" {encoderArgs} \"{this.OutputFilePath}\"";
 
                         this.ffmpegArgumentStringByPass.Add(new FFMpegPass(arguments));
@@ -644,7 +649,7 @@ namespace FileConverter.ConversionJobs
         /// </summary>
         private void FillFFMpegArgumentsListSoftwareFallback()
         {
-            const string baseArgs = "-y"; // Allow overwrite (#636)
+            const string baseArgs = "-y -fflags +genpts"; // Allow overwrite (#636) + fix broken PTS (#748)
 
             int videoEncodingQuality = this.ConversionPreset.GetSettingsValue<int>(ConversionPreset.ConversionSettingKeys.VideoQuality);
             VideoEncodingSpeed videoEncodingSpeed = this.ConversionPreset.GetSettingsValue<VideoEncodingSpeed>(ConversionPreset.ConversionSettingKeys.VideoEncodingSpeed);
@@ -771,9 +776,10 @@ namespace FileConverter.ConversionJobs
 
             if (inputWithoutFileNames.Contains("Exiting.") || inputWithoutFileNames.Contains("Error") || inputWithoutFileNames.Contains("Unsupported dimensions") || inputWithoutFileNames.Contains("No such file or directory"))
             {
-                if (inputWithoutFileNames.StartsWith("Error while decoding stream") && inputWithoutFileNames.EndsWith("Invalid data found when processing input"))
+                if (inputWithoutFileNames.StartsWith("Error while decoding stream") && inputWithoutFileNames.Contains("Invalid data found when processing input"))
                 {
-                    // It is normal for a transport stream to start with a broken frame.
+                    // It is normal for certain containers (transport streams, damaged files)
+                    // to have broken frames at the beginning. These are non-fatal (#452).
                     // https://trac.ffmpeg.org/ticket/1622
                 }
                 else

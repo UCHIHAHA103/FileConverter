@@ -194,6 +194,26 @@ namespace FileConverter.ViewModels
                 return;
             }
 
+            // Expand directories to individual files (#704 multi-folder support).
+            var expandedFiles = new System.Collections.Generic.List<string>();
+            foreach (string path in files)
+            {
+                if (System.IO.Directory.Exists(path))
+                {
+                    expandedFiles.AddRange(System.IO.Directory.GetFiles(path, "*.*", System.IO.SearchOption.AllDirectories));
+                }
+                else
+                {
+                    expandedFiles.Add(path);
+                }
+            }
+
+            files = expandedFiles.ToArray();
+            if (files.Length == 0)
+            {
+                return;
+            }
+
             ISettingsService settingsService = Ioc.Default.GetRequiredService<ISettingsService>();
             if (settingsService.Settings?.ConversionPresets == null ||
                 settingsService.Settings.ConversionPresets.Count == 0)

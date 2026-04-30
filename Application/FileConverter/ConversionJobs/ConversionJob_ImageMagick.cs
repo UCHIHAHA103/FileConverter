@@ -148,6 +148,11 @@ namespace FileConverter.ConversionJobs
                 {
                     Debug.Log($"Write page {this.CurrentOutputFilePathIndex + 1}/{this.pageCount}.");
 
+                    // PDF pages have no explicit background — set white to avoid
+                    // black areas when converting to image formats (#251 #643 #561).
+                    image.BackgroundColor = MagickColors.White;
+                    image.Alpha(AlphaOption.Remove);
+
                     if (PdfSuperSamplingRatio > 1)
                     {
 #pragma warning disable CS0162 // Unreachable code detected
