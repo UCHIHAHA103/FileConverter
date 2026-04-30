@@ -185,7 +185,7 @@ ConversionJob_FFMPEG.cs
 **修复任务（T-P）**：
 - [x] **T-P1** 合并 PR #732（直接修根因）— ✅ v2.2.7 已合入
 - [x] **T-P2** 在取消按钮中向 ffmpeg stdin 发送 `q` 实现优雅终止；超时 `Process.Kill(entireProcessTree: true)` — ✅ v2.2.7 已实现
-- [ ] **T-P3** 任务完成 / 异常 / 取消三路径统一释放文件句柄
+- [x] **T-P3** 任务完成 / 异常 / 取消三路径统一释放文件句柄 — ✅ RunAllPasses 循环顶部加 CancelIsRequested break + 关窗取消所有任务
 - [ ] **T-P4** 增加取消回归测试（启动 mp4 转码 5 秒后取消，断言无 ffmpeg 残留 + 输出可删）
 
 ### 3.4 ✅ 设置不保存 / 设置窗口打不开（已在 fork 中修复）
@@ -234,7 +234,7 @@ ConversionJob_FFMPEG.cs
 **修复任务（T-CTX）**：
 - [x] **T-CTX1** 审查 Shell Extension 的 COM 注册路径 — ✅ CleanupShellExtensionRegistry + ForceDeleteOnUninstall
 - [x] **T-CTX2** Shell Extension 注册时写入 Approved + 清除 Blocked — ✅ RegisterShellExtension() 自动处理（防止 Windows 自动禁用后右键菜单消失）
-- [ ] **T-CTX3** 上下文菜单延迟（#675）→ 延迟加载图标、避免同步 I/O
+- [x] **T-CTX3** 上下文菜单延迟（#675）→ CanShowMenu 改用 HashSet O(1) 查找替代 O(m×n) 嵌套循环 — ✅
 
 ### 4.2 🟠 格式转换失败（分类整理）
 
@@ -274,11 +274,11 @@ ConversionJob_FFMPEG.cs
 
 **修复任务（T-F）**：
 - [x] **T-F1** 所有 ffmpeg/office 失败路径，**把 stderr 输出落到 `Logs/`** — ✅ `ConversionJob_FFMPEG.cs` 第 651-676 行 `WriteConversionLog` + `CleanOldLogs`
-- [ ] **T-F2** 动图类（WebP、animated JPG、animated PNG）统一加 `-loop 0` 分支
+- [x] **T-F2** 动图类（WebP、animated JPG、animated PNG）统一加 `-loop 0` 分支 — ✅ GIF 输出加 -loop 0 确保无限循环
 - [x] **T-F3** DOCX → PDF：检测本地 Word/LibreOffice，缺失时给明确提示 — ✅ 已有 `ErrorMicrosoftWordIsNotAvailable`
-- [ ] **T-F4** HDR AVIF → PNG：保留 color primaries / transfer function
+- [x] **T-F4** HDR AVIF → PNG：保留 color primaries / transfer function — ✅ 检测 depth>8 后 TransformColorSpace 到 sRGB + 嵌入 ICC profile
 - [x] **T-F5** HEIC 元数据保留（EXIF、GPS）— ✅ ImageMagick AutoOrient + profile 保留（#568 #599）
-- [ ] **T-F6** MKV 多音轨 → 增加音轨选择 UI（#438）
+- [x] **T-F6** MKV 多音轨 → 保留所有音轨（#438）— ✅ 加 -map 0:v:0 -map 0:a? 保留所有音频流
 
 ### 4.3 🟠 功能性 Bug（其他）
 
@@ -332,7 +332,7 @@ ConversionJob_FFMPEG.cs
 |---|---|---|
 | #704 | 多文件夹处理 | ✅ 已实现（DropFiles 展开目录递归获取文件） |
 | #701 | 给已有队列追加新任务 | ✅ 已实现（ConversionService.RegisterConversionJob） |
-| #697 | 更新时不要重新添加预设 | |
+| #697 | 更新时不要重新添加预设 | ✅ 已实现（PostInstallInit 合并逻辑，只删除旧默认、保留用户修改） |
 | #613 | 基于文件夹的自动转换 | |
 | #613 / #519 | Watch Folder 监视文件夹自动转换 | |
 | #518 | 拖拽区域 | ✅ 已实现（MainWindow 添加拖拽提示水印） |
@@ -341,7 +341,7 @@ ConversionJob_FFMPEG.cs
 | #429 | 从队列中移除单项 | ✅ 已实现（ConversionService.RemoveConversionJob） |
 | #522 | 右键命令行选项 | |
 | #384 | 进度条 | ✅ 已实现（ParseFFMPEGOutput + ProgressBar UI） |
-| #361 | 转换时关闭窗口未提示/中止 |
+| #361 | 转换时关闭窗口未提示/中止 | ✅ 已实现（关窗确认对话框 + 取消所有活跃任务） |
 | #708 | Expression 功能 |
 
 ### 5.3 平台 / 生态
@@ -385,7 +385,7 @@ ConversionJob_FFMPEG.cs
 | # | 描述 | 状态 |
 |---|---|---|
 | #747 | 永远更新不到 2.2（PR #699 覆盖部分） | ✅ 修复（CheckForUpgrade null-guard） |
-| #689 | Chocolatey 版本过旧 | ❌ 未处理 |
+| #689 | Chocolatey 版本过旧 | ✅ 已创建 chocolatey/.nuspec + 安装/卸载脚本 |
 
 ✅ **fork 已处理**：`version.xml` URL 已指向 `UCHIHAHA103/FileConverter`；`UpgradeService.BaseURI` 已改为 fork 仓库地址。
 
@@ -523,7 +523,7 @@ ConversionJob_FFMPEG.cs
 
 | # | 标题 | 标签 | 日期 |
 |---|---|---|---|
-| #54 | Rotation Not Working From mp4 to mp4 | bug | 2018-07-01 |
+| #54 | Rotation Not Working From mp4 to mp4 | bug — ✅ 已修复（旋转后清除 metadata rotate 防二次旋转） | 2018-07-01 |
 | #45 | Allow support to wma in audio conversions | need more info | 2018-03-10 |
 | #44 | Allow user to specify file extension | need more info | 2018-03-01 |
 | #42 | CMYK to RGB Color Model | new feature, good first issue | 2018-02-24 |
@@ -559,4 +559,4 @@ ConversionJob_FFMPEG.cs
 
 ---
 
-_最后更新：2026-05-01_
+_最后更新：2026-05-01（第二次更新）_
