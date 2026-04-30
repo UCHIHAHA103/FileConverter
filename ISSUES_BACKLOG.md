@@ -233,25 +233,25 @@ ConversionJob_FFMPEG.cs
 
 **修复任务（T-CTX）**：
 - [x] **T-CTX1** 审查 Shell Extension 的 COM 注册路径 — ✅ CleanupShellExtensionRegistry + ForceDeleteOnUninstall
-- [ ] **T-CTX2** 启动器检测 Shell Extension 状态 → 用户可见的"启用"按钮
+- [x] **T-CTX2** Shell Extension 注册时写入 Approved + 清除 Blocked — ✅ RegisterShellExtension() 自动处理（防止 Windows 自动禁用后右键菜单消失）
 - [ ] **T-CTX3** 上下文菜单延迟（#675）→ 延迟加载图标、避免同步 I/O
 
 ### 4.2 🟠 格式转换失败（分类整理）
 
 **视频类**：
-- #748 MKV → MP4 失败
+- #748 MKV → MP4 失败 — ✅ 已修复（-fflags +genpts 修复 broken PTS）
 - #713 NVENC/CUDA + scaling 滤镜错（PR #702 覆盖）
-- #709 AVI → MP4 失败
-- #678 mp4 → ogv 失败
-- #577 MKV 文件转换错误
+- #709 AVI → MP4 失败 — ✅ 已修复（-fflags +genpts）
+- #678 mp4 → ogv 失败 — ✅ 已修复（Theora 加 format=yuv420p）
+- #577 MKV 文件转换错误 — ✅ 已修复（-fflags +genpts）
 - #572 NVIDIA CUDA 硬件错（PR #702 覆盖）
-- #560 视频转音频 ffmpeg 错
-- #452 "Invalid data found when processing input"
+- #560 视频转音频 ffmpeg 错 — ✅ 已修复（所有音频 case 加 -vn）
+- #452 "Invalid data found when processing input" — ✅ 已修复（扩展容错范围 EndsWith→Contains）
 
 **音频类**：
-- #740 m4a → mp3（合并 PR #732）
-- #715 Opus packet header 解析错
-- #711 mp4 → mp3
+- #740 m4a → mp3（合并 PR #732）— ✅ 已修复
+- #715 Opus packet header 解析错 — ✅ 已修复（-fflags +genpts 帮助容器修复）
+- #711 mp4 → mp3 — ✅ 已修复
 - #289 错误音轨被保留在输出（#438 用户希望能选音轨）
 
 **文档类**：
@@ -265,11 +265,11 @@ ConversionJob_FFMPEG.cs
 **图像类**：
 - #746 动画 webp → gif 变静态（→ Issue #640 同类：animated JPG 也丢帧）
 - #719 HDR AVIF → PNG 丢 HDR
-- #676 非透明 PNG
-- #643 PDF → PNG 问题
-- #561 PDF → PNG 无输出
-- #568 HEIC → PNG 丢 EXIF
-- #251 docx → png 背景色错
+- #676 非透明 PNG — ✅ 已修复（FFmpeg PNG 输出加 -pix_fmt rgba 保留 alpha）
+- #643 PDF → PNG 问题 — ✅ 已修复（PDF 页面设白色背景 + alpha remove）
+- #561 PDF → PNG 无输出 — ✅ 已修复（同上）
+- #568 HEIC → PNG 丢 EXIF — ✅ 已修复（ImageMagick AutoOrient + profile 保留）
+- #251 docx → png 背景色错 — ✅ 已修复（PDF 中间产物加白色背景）
 - #513 webp → gif 不再生成 gif
 
 **修复任务（T-F）**：
@@ -330,12 +330,12 @@ ConversionJob_FFMPEG.cs
 
 | # | 请求 | 状态 |
 |---|---|---|
-| #704 | 多文件夹处理 | |
+| #704 | 多文件夹处理 | ✅ 已实现（DropFiles 展开目录递归获取文件） |
 | #701 | 给已有队列追加新任务 | ✅ 已实现（ConversionService.RegisterConversionJob） |
 | #697 | 更新时不要重新添加预设 | |
 | #613 | 基于文件夹的自动转换 | |
 | #613 / #519 | Watch Folder 监视文件夹自动转换 | |
-| #518 | 拖拽区域 | |
+| #518 | 拖拽区域 | ✅ 已实现（MainWindow 添加拖拽提示水印） |
 | #515 | 全局无损选项 | |
 | #514 | 转换视频片段 | |
 | #429 | 从队列中移除单项 | ✅ 已实现（ConversionService.RemoveConversionJob） |
@@ -559,4 +559,4 @@ ConversionJob_FFMPEG.cs
 
 ---
 
-_最后更新：2026-04-30（第二次更新）_
+_最后更新：2026-05-01_
