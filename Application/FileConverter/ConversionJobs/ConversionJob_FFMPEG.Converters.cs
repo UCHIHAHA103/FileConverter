@@ -123,6 +123,13 @@ namespace FileConverter.ConversionJobs
                 transformArgs += rotationArgs;
             }
 
+            // When rotation is applied via filter, strip the rotation metadata from the
+            // output so players don't double-rotate the video (#54).
+            if (!string.IsNullOrEmpty(rotationArgs))
+            {
+                transformArgs += (transformArgs.Length > 0 ? "," : string.Empty) + "metadata=s:v:rotate=0";
+            }
+
             if (hwAccel != Helpers.HardwareAccelerationMode.CUDA && (conversionPreset.OutputType == OutputType.Mkv || conversionPreset.OutputType == OutputType.Mp4))
             {
                 // For H.264 in MP4/MKV, force yuv420p for broad player compatibility:

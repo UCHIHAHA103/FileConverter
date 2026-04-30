@@ -215,8 +215,8 @@ namespace FileConverter.ConversionJobs
                         string arguments = $"{baseArgs} -i \"{this.InputFilePath}\" {encoderArgs} \"{paletteFilePath}\"";
                         this.ffmpegArgumentStringByPass.Add(new FFMpegPass("Indexing colors", arguments, paletteFilePath));
 
-                        // Create gif.
-                        encoderArgs = $"-i \"{paletteFilePath}\" -lavfi \"{transformArgs},paletteuse\"";
+                        // Create gif. -loop 0 ensures infinite looping (#746 #513 #142 #38).
+                        encoderArgs = $"-i \"{paletteFilePath}\" -lavfi \"{transformArgs},paletteuse\" -loop 0";
                         arguments = $"{baseArgs} -i \"{this.InputFilePath}\" {encoderArgs} \"{this.OutputFilePath}\"";
                         this.ffmpegArgumentStringByPass.Add(new FFMpegPass(arguments));
                     }
@@ -325,7 +325,10 @@ namespace FileConverter.ConversionJobs
 
                         // -movflags +faststart moves moov atom to start of file for streaming and thumbnail display (#270).
                         string movflags = this.ConversionPreset.OutputType == OutputType.Mp4 ? "-movflags +faststart" : string.Empty;
-                        string encoderArgs = $"-c:v {videoCodec} {videoCodecArgs} {audioArgs} {videoFilteringArgs} {movflags}";
+                        // -map 0:v:0 -map 0:a? preserves all audio tracks from MKV inputs (#438 #289 T-F6).
+                        // The '?' suffix means "don't fail if no audio stream exists".
+                        string mapArgs = "-map 0:v:0 -map 0:a?";
+                        string encoderArgs = $"{mapArgs} -c:v {videoCodec} {videoCodecArgs} {audioArgs} {videoFilteringArgs} {movflags}";
 
                         string arguments = $"{baseArgs} {hwAccelArg} -i \"{this.InputFilePath}\" {encoderArgs} \"{this.OutputFilePath}\"";
 

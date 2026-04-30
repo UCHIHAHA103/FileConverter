@@ -177,6 +177,15 @@ namespace FileConverter.ViewModels
                 }
             }
 
+            // Cancel all active conversion jobs before closing (#361).
+            foreach (var job in this.ConversionJobs)
+            {
+                if (job.State == ConversionState.InProgress || job.State == ConversionState.Ready)
+                {
+                    job.Cancel();
+                }
+            }
+
             INavigationService navigationService = Ioc.Default.GetRequiredService<INavigationService>();
             navigationService.Close(Pages.Main, args != null);
         }

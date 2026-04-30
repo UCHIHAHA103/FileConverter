@@ -254,6 +254,28 @@ namespace FileConverter.ConversionJobs
                 image.ColorSpace = ColorSpace.sRGB;
             }
 
+            // HDR → SDR tone mapping for high bit-depth inputs (e.g., HDR AVIF) (#719 T-F4).
+            // If image has > 8 bits per channel and output is SDR format (PNG/JPG/WebP),
+            // transform to sRGB color space to prevent highlight clipping and dark output.
+            if (image.Depth > 8 && this.ConversionPreset.OutputType != OutputType.Avif)
+            {
+                Debug.Log($"HDR input detected (depth={image.Depth}). Applying tone mapping to sRGB.");
+                var iccProfile = image.GetColorProfile();
+                if (iccProfile != null)
+                {
+                    // Transform from embedded ICC profile to sRGB.
+                    image.TransformColorSpace(iccProfile, ColorProfile.SRGB);
+                    Debug.Log("Transformed color space from ICC profile to sRGB.");
+                }
+                else
+                {
+                    // No ICC profile — just clamp to sRGB.
+                    image.TransformColorSpace(ColorProfile.SRGB);
+                }
+
+                image.Depth = 8;
+            }
+
             // For formats that don't support transparency (JPG, PDF), composite
             // onto a white background to avoid black areas (#129 SVG alpha).
             if (this.ConversionPreset.OutputType == OutputType.Jpg ||

@@ -28,6 +28,9 @@ namespace FileConverterExtension
 
         private HashSet<string> extensionCache = new HashSet<string>();
 
+        // Index: extension → true. Used for O(1) CanShowMenu check (#675 T-CTX3).
+        private HashSet<string> allSupportedExtensions = null;
+
         // Cached bitmaps to avoid re-creating Icon objects on every right-click (#675).
         private static Bitmap cachedAppIcon;
         private static Bitmap cachedFolderIcon;
@@ -123,20 +126,18 @@ namespace FileConverterExtension
             {
                 this.RefreshExtensionCacheFromSelectedItems();
 
-                PresetReference[] presets = this.PresetReferences;
-                if (presets == null)
+                // Fast path: check against pre-built extension index (O(1) per extension).
+                this.LoadExtensionSettingsIfNecessary();
+                if (this.allSupportedExtensions == null || this.allSupportedExtensions.Count == 0)
                 {
                     return false;
                 }
 
                 foreach (string extension in this.extensionCache)
                 {
-                    foreach (PresetReference presetReference in presets)
+                    if (this.allSupportedExtensions.Contains(extension))
                     {
-                        if (presetReference?.InputTypes != null && presetReference.InputTypes.Contains(extension))
-                        {
-                            return true;
-                        }
+                        return true;
                     }
                 }
             }
@@ -360,6 +361,19 @@ namespace FileConverterExtension
                 }
 
                 this.presetReferences = valid.ToArray();
+            }
+
+            // Build extension index for O(1) lookup in CanShowMenu (#675 T-CTX3).
+            this.allSupportedExtensions = new HashSet<string>();
+            if (this.presetReferences != null)
+            {
+                foreach (var preset in this.presetReferences)
+                {
+                    foreach (string ext in preset.InputTypes)
+                    {
+                        this.allSupportedExtensions.Add(ext);
+                    }
+                }
             }
         }
 

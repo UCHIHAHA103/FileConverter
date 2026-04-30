@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.chocolatey.org/2015/06/nuspec.xsd">
+  <metadata>
+    <id>fileconverter</id>
+    <version>2.2.9</version>
+    <title>File Converter</title>
+    <authors>UCHIHAHA103</authors>
+    <owners>UCHIHAHA103</owners>
+    <projectUrl>https://github.com/UCHIHAHA103/FileConverter</projectUrl>
+    <iconUrl>https://raw.githubusercontent.com/UCHIHAHA103/FileConverter/integration/Resources/ApplicationIcon.png</iconUrl>
+    <licenseUrl>https://github.com/UCHIHAHA103/FileConverter/blob/integration/LICENSE.md</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>File Converter is a simple tool to convert and compress files using the context menu in Windows Explorer. Supports video, audio, image, and document conversion via FFmpeg, ImageMagick, and Microsoft Office.</description>
+    <summary>Convert and compress files from the Windows Explorer context menu.</summary>
+    <tags>file converter video audio image ffmpeg imagemagick context-menu</tags>
+    <releaseNotes>https://github.com/UCHIHAHA103/FileConverter/blob/integration/CHANGELOG.md</releaseNotes>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>
