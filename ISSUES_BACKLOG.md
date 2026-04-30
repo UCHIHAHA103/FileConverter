@@ -144,7 +144,7 @@ ConversionJob_FFMPEG.cs
 - [x] **T-L3** 复现 #750 "保存后窗口自动关闭" — ✅ 已用 try/catch 保护
 - [x] **T-L4** 检查 CurrentUICulture 切换后 ResourceDictionary 是否重载 — ✅ 已设置 Resources.Culture + 重启
 - [x] **T-L5** 若需重启才生效，则增加 "需重启" 提示 — ✅ 保存后自动重启
-- [ ] **T-L6** 合入 PR #698（简体中文）、#712（意大利语）、#707（加泰罗尼亚语）
+- [x] **T-L6** 合入 PR #698（简体中文）、#712（意大利语）、#707（加泰罗尼亚语）— ✅ 已合入
 - [ ] **T-L7** 补齐波兰语（#638）
 
 ### 3.2 ✅ v2.2.3+ 右键菜单消失根因（已在 v2.2.7 修复）
@@ -275,9 +275,9 @@ ConversionJob_FFMPEG.cs
 **修复任务（T-F）**：
 - [x] **T-F1** 所有 ffmpeg/office 失败路径，**把 stderr 输出落到 `Logs/`** — ✅ `ConversionJob_FFMPEG.cs` 第 651-676 行 `WriteConversionLog` + `CleanOldLogs`
 - [ ] **T-F2** 动图类（WebP、animated JPG、animated PNG）统一加 `-loop 0` 分支
-- [ ] **T-F3** DOCX → PDF：检测本地 Word/LibreOffice，缺失时给明确提示
+- [x] **T-F3** DOCX → PDF：检测本地 Word/LibreOffice，缺失时给明确提示 — ✅ 已有 `ErrorMicrosoftWordIsNotAvailable`
 - [ ] **T-F4** HDR AVIF → PNG：保留 color primaries / transfer function
-- [ ] **T-F5** HEIC 元数据保留（EXIF、GPS）
+- [x] **T-F5** HEIC 元数据保留（EXIF、GPS）— ✅ ImageMagick AutoOrient + profile 保留（#568 #599）
 - [ ] **T-F6** MKV 多音轨 → 增加音轨选择 UI（#438）
 
 ### 4.3 🟠 功能性 Bug（其他）
@@ -300,47 +300,47 @@ ConversionJob_FFMPEG.cs
 
 ### 5.1 格式扩展请求（合集）
 
-| # | 请求 |
-|---|---|
-| #744 | PDF → DOC |
-| #743 | PNG/JPG → DDS |
-| #694 | EPUB ↔ ODT/FODT、PDF ↔ ODP/FODP |
-| #687 | OGG 预设支持 Opus（现仅 vorbis） |
-| #668 | 图像转成指定宽高比 |
-| #636 | 覆盖输出选项 |
-| #612 | JXL 支持 |
-| #611 | 自定义输出格式 |
-| #602 | TGA → PNG |
-| #601 | AIFC → WAV |
-| #571 | MP4 → PNG（提帧） |
-| #454 | CDR → PSD |
-| #446 | CBR ↔ CBZ ↔ PDF ↔ EPUB |
-| #443 | SVG 输出 |
-| #438 | 选择 MKV 音轨 |
-| #437 | ALAC 输出（**PR #562 已实现**） |
-| #427 | JPEG XL |
-| #386 | H.265 预设 |
-| #375 | 软字幕 → 硬字幕 |
-| #369 | HEIF/HEIC → JPEG/PNG/PDF |
-| #267 | EPS → SVG |
-| #259 | EPUB → PDF |
-| #632 | Whisper 字幕输出控制 |
+| # | 请求 | 状态 |
+|---|---|---|
+| #744 | PDF → DOC | |
+| #743 | PNG/JPG → DDS | |
+| #694 | EPUB ↔ ODT/FODT、PDF ↔ ODP/FODP | |
+| #687 | OGG 预设支持 Opus（现仅 vorbis） | |
+| #668 | 图像转成指定宽高比 | |
+| #636 | 覆盖输出选项 | ✅ 已实现（FFmpeg -n→-y，去重由 GenerateUniquePath 处理） |
+| #612 | JXL 支持 | |
+| #611 | 自定义输出格式 | |
+| #602 | TGA → PNG | |
+| #601 | AIFC → WAV | |
+| #571 | MP4 → PNG（提帧） | |
+| #454 | CDR → PSD | |
+| #446 | CBR ↔ CBZ ↔ PDF ↔ EPUB | |
+| #443 | SVG 输出 | |
+| #438 | 选择 MKV 音轨 | |
+| #437 | ALAC 输出（**PR #562 已实现**） | ✅ |
+| #427 | JPEG XL | |
+| #386 | H.265 预设 | ✅ 已实现（Settings.default.xml 含 H.265/HEVC 自定义命令 preset） |
+| #375 | 软字幕 → 硬字幕 | |
+| #369 | HEIF/HEIC → JPEG/PNG/PDF | |
+| #267 | EPS → SVG | |
+| #259 | EPUB → PDF | |
+| #632 | Whisper 字幕输出控制 | |
 
 ### 5.2 流程增强
 
-| # | 请求 |
-|---|---|
-| #704 | 多文件夹处理 |
-| #701 | 给已有队列追加新任务 |
-| #697 | 更新时不要重新添加预设 |
-| #613 | 基于文件夹的自动转换 |
-| #613 / #519 | Watch Folder 监视文件夹自动转换 |
-| #518 | 拖拽区域 |
-| #515 | 全局无损选项 |
-| #514 | 转换视频片段 |
-| #429 | 从队列中移除单项 |
-| #522 | 右键命令行选项 |
-| #384 | 进度条 |
+| # | 请求 | 状态 |
+|---|---|---|
+| #704 | 多文件夹处理 | |
+| #701 | 给已有队列追加新任务 | ✅ 已实现（ConversionService.RegisterConversionJob） |
+| #697 | 更新时不要重新添加预设 | |
+| #613 | 基于文件夹的自动转换 | |
+| #613 / #519 | Watch Folder 监视文件夹自动转换 | |
+| #518 | 拖拽区域 | |
+| #515 | 全局无损选项 | |
+| #514 | 转换视频片段 | |
+| #429 | 从队列中移除单项 | ✅ 已实现（ConversionService.RemoveConversionJob） |
+| #522 | 右键命令行选项 | |
+| #384 | 进度条 | ✅ 已实现（ParseFFMPEGOutput + ProgressBar UI） |
 | #361 | 转换时关闭窗口未提示/中止 |
 | #708 | Expression 功能 |
 
@@ -430,12 +430,12 @@ ConversionJob_FFMPEG.cs
 
 1. ✅ ~~**T-CTX1 ~ T-CTX3**：右键菜单修复~~（全部 9 个 issue 已修复，含 #675 延迟优化）
 2. - [ ] Watch Folder（#519 / #613）
-3. - [ ] Queue 管理（#701 / #429）
-4. - [ ] 进度条（#384）
+3. ✅ ~~Queue 管理（#701 / #429）~~（ConversionService.RemoveConversionJob 已实现）
+4. ✅ ~~进度条（#384）~~（ParseFFMPEGOutput 解析 time= 计算进度，UI ProgressBar 已绑定）
 
 ### 🚀 Sprint 5+：按需实现高票功能请求
 
-- 高票格式：H.265 预设（#386）、HEIC→JPEG（#369）、Opus（#687）
+- 高票格式：~~H.265 预设（#386）~~✅、HEIC→JPEG（#369）、Opus（#687）
 - PowerToys 集成（#671）、Pandoc 集成（#669）
 
 ---
@@ -559,4 +559,4 @@ ConversionJob_FFMPEG.cs
 
 ---
 
-_最后更新：2026-04-30_
+_最后更新：2026-04-30（第二次更新）_
