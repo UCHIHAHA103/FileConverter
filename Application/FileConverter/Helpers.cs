@@ -130,6 +130,44 @@ namespace FileConverter
             {
                 Diagnostics.Debug.Log($"{shellExtensionPath} installed and registered.");
                 Diagnostics.Debug.Log(regasm.StandardOutput);
+
+                // Add to Approved list so Windows doesn't auto-disable the extension.
+                const string clsid = "{AF9B72B5-F4E4-44B0-A3D9-B55B748EFE90}";
+                try
+                {
+                    using (var approvedKey = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
+                        @"SOFTWARE\Microsoft\Windows\CurrentVersion\Shell Extensions\Approved", true))
+                    {
+                        if (approvedKey != null)
+                        {
+                            approvedKey.SetValue(clsid, "File Converter Shell Extension");
+                            Diagnostics.Debug.Log("Added to Shell Extensions\\Approved.");
+                        }
+                    }
+                }
+                catch (System.Exception ex)
+                {
+                    Diagnostics.Debug.Log($"Could not add to Approved list (non-fatal): {ex.Message}");
+                }
+
+                // Remove from Blocked list (in case Windows previously auto-disabled it).
+                try
+                {
+                    using (var blockedKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                        @"Software\Microsoft\Windows\CurrentVersion\Shell Extensions\Blocked", true))
+                    {
+                        if (blockedKey != null)
+                        {
+                            blockedKey.DeleteValue(clsid, false);
+                            Diagnostics.Debug.Log("Removed from Shell Extensions\\Blocked.");
+                        }
+                    }
+                }
+                catch (System.Exception ex)
+                {
+                    Diagnostics.Debug.Log($"Could not remove from Blocked list (non-fatal): {ex.Message}");
+                }
+
                 return true;
             }
             else
