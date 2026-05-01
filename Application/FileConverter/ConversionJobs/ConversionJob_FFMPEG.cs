@@ -510,6 +510,12 @@ namespace FileConverter.ConversionJobs
         {
             for (int index = 0; index < this.ffmpegArgumentStringByPass.Count; index++)
             {
+                // Skip remaining passes if cancel was requested (#T-P3).
+                if (this.CancelIsRequested)
+                {
+                    break;
+                }
+
                 FFMpegPass currentPass = this.ffmpegArgumentStringByPass[index];
 
                 this.UserState = currentPass.Name;
