@@ -115,7 +115,9 @@ namespace FileConverter.ViewModels
                 for (int index = 0; index < this.inputCategories.Length; index++)
                 {
                     InputExtensionCategory category = this.inputCategories[index];
-                    if (this.SelectedPreset == null || Helpers.IsOutputTypeCompatibleWithCategory(this.SelectedPreset.Preset.OutputType, category.Name))
+                    // Show all categories when custom FFmpeg command is enabled (any input→output is valid).
+                    bool customCmd = this.SelectedPreset?.Preset?.GetSettingsValue<bool>(ConversionPreset.ConversionSettingKeys.EnableFFMPEGCustomCommand) ?? false;
+                    if (this.SelectedPreset == null || customCmd || Helpers.IsOutputTypeCompatibleWithCategory(this.SelectedPreset.Preset.OutputType, category.Name))
                     {
                         yield return category;
                     }

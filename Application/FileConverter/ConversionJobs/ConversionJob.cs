@@ -230,7 +230,11 @@ namespace FileConverter.ConversionJobs
             string extension = System.IO.Path.GetExtension(this.initialInputPath);
             extension = extension.Substring(1, extension.Length - 1);
             string extensionCategory = Helpers.GetExtensionCategory(extension);
-            if (!Helpers.IsOutputTypeCompatibleWithCategory(this.ConversionPreset.OutputType, extensionCategory))
+
+            // Skip compatibility check when custom FFmpeg command is enabled —
+            // custom commands can handle any input→output combination (e.g., video→PNG frames).
+            bool customCommandEnabled = this.ConversionPreset.GetSettingsValue<bool>(ConversionPreset.ConversionSettingKeys.EnableFFMPEGCustomCommand);
+            if (!customCommandEnabled && !Helpers.IsOutputTypeCompatibleWithCategory(this.ConversionPreset.OutputType, extensionCategory))
             {
                 this.ConversionFailed(Properties.Resources.ErrorInputTypeIncompatibleWithOutputType);
                 return;
