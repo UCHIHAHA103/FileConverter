@@ -150,15 +150,39 @@ jobs:
               }
           }
 
-      # Touch all compiled outputs with "now" so timestamps reflect actual build
-      # completion time (not some PE linker timestamp written in UTC that looks
-      # 8h off when viewed on CST+8 machines). Done BEFORE the Installer builds
-      # so MSI packaging seals these timestamps into the File table.
+      # Touch all compiled outputs with a timestamp that will display correctly
+      # on the end user's clock. Root cause: WiX writes CAB entries using the
+      # source file's local wall-clock time. On a UTC CI runner, that becomes
+      # the UTC value written as if it were local. Windows Installer on the
+      # user's machine (e.g. CST+8) then re-interprets that stored "local"
+      # time through LocalFileTimeToFileTime, producing a LastWriteTime that
+      # is ~8h behind the real build completion moment.
+      #
+      # Fix: advance the wall-clock we write by the expected user TZ offset
+      # (UTC+8 = CST / Beijing time) BEFORE WiX packages them into the CAB.
+      # Net effect: a CST user sees "build completion moment in Beijing time".
       - name: Normalize file timestamps before MSI packaging
         shell: pwsh
         run: |
-          $now = Get-Date
-          Write-Host "Touching all build outputs to: $now (UTC: $($now.ToUniversalTime()))"
+          # Target: files should display "Beijing wall-clock time of the build"
+          # on a CST+8 user's Explorer.
+          #
+          # Why the +8h offset? End-to-end flow of a MSI file timestamp:
+          #   1. WiX reads each source file's LastWriteTime (in CI local tz).
+          #   2. It writes that wall-clock value into the CAB as a DOS date/time
+          #      entry (no tz metadata, just a literal "hh:mm YYYY-MM-DD").
+          #   3. On install, Windows Installer treats that DOS entry as the
+          #      user's LOCAL time and calls LocalFileTimeToFileTime() to get
+          #      the NTFS UTC. i.e. NTFS_UTC = DOS_entry - user_TZ_offset.
+          #   4. Explorer then displays that NTFS_UTC + user_TZ_offset back as
+          #      local, which round-trips back to DOS_entry.
+          # So whatever wall-clock we stamp here is exactly what a user sees.
+          #
+          # GH runner is UTC. Real build-completion moment in CST = UTC + 8h.
+          $ntfsStamp = (Get-Date).AddHours(8)
+          Write-Host "Stamping all build outputs with wall-clock: $ntfsStamp"
+          Write-Host "(This will display as the Beijing-time moment of the build on CST machines.)"
+
           $dirs = @(
             "Application\FileConverter\bin\x64\Release",
             "Application\FileConverterExtension\bin\x64\Release",
@@ -170,9 +194,9 @@ jobs:
               $files = Get-ChildItem $dir -Recurse -File
               foreach ($f in $files) {
                 try {
-                  $f.LastWriteTime = $now
-                  $f.CreationTime  = $now
-                  $f.LastAccessTime = $now
+                  $f.LastWriteTime  = $ntfsStamp
+                  $f.CreationTime   = $ntfsStamp
+                  $f.LastAccessTime = $ntfsStamp
                   $total++
                 } catch { }
               }
