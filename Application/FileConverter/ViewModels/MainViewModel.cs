@@ -26,6 +26,7 @@ namespace FileConverter.ViewModels
 
         private RelayCommand showSettingsCommand;
         private RelayCommand showDiagnosticsCommand;
+        private RelayCommand openLogsFolderCommand;
         private RelayCommand<CancelEventArgs> closeCommand;
         private RelayCommand<DragEventArgs> dropFilesCommand;
         private RelayCommand<ConversionJob> openOutputFileCommand;
@@ -91,6 +92,48 @@ namespace FileConverter.ViewModels
                 }
 
                 return this.showDiagnosticsCommand;
+            }
+        }
+
+        /// <summary>
+        /// Opens the folder containing persistent FileConverter.log (and rotated
+        /// backups) in Windows Explorer, with FileConverter.log selected.
+        /// Useful for users reporting issues.
+        /// </summary>
+        public ICommand OpenLogsFolderCommand
+        {
+            get
+            {
+                if (this.openLogsFolderCommand == null)
+                {
+                    this.openLogsFolderCommand = new RelayCommand(() =>
+                    {
+                        try
+                        {
+                            string logPath = FileConverter.Diagnostics.Debug.PersistentLogPath;
+                            if (!string.IsNullOrEmpty(logPath) && System.IO.File.Exists(logPath))
+                            {
+                                System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{logPath}\"");
+                            }
+                            else
+                            {
+                                string dir = System.IO.Path.GetDirectoryName(logPath);
+                                if (!string.IsNullOrEmpty(dir) && System.IO.Directory.Exists(dir))
+                                {
+                                    System.Diagnostics.Process.Start("explorer.exe", $"\"{dir}\"");
+                                }
+                            }
+                        }
+                        catch (System.Exception ex)
+                        {
+                            FileConverter.Diagnostics.Debug.LogException(
+                                FileConverter.Diagnostics.Debug.CatGeneral,
+                                "OpenLogsFolderCommand failed", ex);
+                        }
+                    });
+                }
+
+                return this.openLogsFolderCommand;
             }
         }
 

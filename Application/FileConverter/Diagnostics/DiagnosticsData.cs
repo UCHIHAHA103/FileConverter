@@ -61,22 +61,38 @@ namespace FileConverter.Diagnostics
         {
             string path = Path.Combine(diagnosticsFolderPath, $"Diagnostics{id}.log");
             path = PathHelpers.GenerateUniquePath(path);
-            this.logFileWriter = new StreamWriter(File.Open(path, FileMode.Create));
+            try
+            {
+                this.logFileWriter = new StreamWriter(
+                    File.Open(path, FileMode.Create, FileAccess.Write, FileShare.Read),
+                    new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            }
+            catch { this.logFileWriter = null; }
 
             this.Log($"{System.DateTime.Now.ToLongDateString()} {System.DateTime.Now.ToLongTimeString()}\n");
         }
 
         public void Release()
         {
-            this.logFileWriter.Close();
+            try
+            {
+                this.logFileWriter?.Flush();
+                this.logFileWriter?.Close();
+            }
+            catch { }
             this.logFileWriter = null;
         }
 
         public void Log(string log)
         {
-            this.logMessages.Add(log);
-            this.logFileWriter.WriteLine(log);
-            this.logFileWriter.Flush();
+            string stamped = $"{System.DateTime.Now:HH:mm:ss.fff} {log}";
+            this.logMessages.Add(stamped);
+            try
+            {
+                this.logFileWriter?.WriteLine(stamped);
+                this.logFileWriter?.Flush();
+            }
+            catch { /* swallow: logging must never crash */ }
 
             this.OnPropertyChanged(nameof(this.Content));
         }

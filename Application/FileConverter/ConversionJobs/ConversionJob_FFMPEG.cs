@@ -521,8 +521,13 @@ namespace FileConverter.ConversionJobs
                 this.UserState = currentPass.Name;
                 this.ffmpegProcessStartInfo.Arguments = currentPass.Arguments;
 
-                Diagnostics.Debug.Log($"{logPrefix}Execute command: {this.ffmpegProcessStartInfo.FileName} {this.ffmpegProcessStartInfo.Arguments}.");
-                Diagnostics.Debug.Log(string.Empty);
+                Diagnostics.Debug.Log(Diagnostics.Debug.CatFFmpeg,
+                    $"{logPrefix}Pass {index + 1}/{this.ffmpegArgumentStringByPass.Count} START: '{currentPass.Name}'");
+                Diagnostics.Debug.Log(Diagnostics.Debug.CatFFmpeg,
+                    $"{logPrefix}Command: {this.ffmpegProcessStartInfo.FileName} {this.ffmpegProcessStartInfo.Arguments}");
+
+                var passStart = System.DateTime.Now;
+                int exitCode = -1;
 
                 try
                 {
@@ -534,6 +539,8 @@ namespace FileConverter.ConversionJobs
                             {
                                 if (this.CancelIsRequested && !exeProcess.HasExited)
                                 {
+                                    Diagnostics.Debug.Log(Diagnostics.Debug.CatFFmpeg,
+                                        $"{logPrefix}Cancel requested, terminating ffmpeg process {exeProcess.Id}");
                                     this.GracefullyTerminateProcess(exeProcess);
                                     break;
                                 }
@@ -543,7 +550,7 @@ namespace FileConverter.ConversionJobs
                                 this.ParseFFMPEGOutput(result);
                                 stderrLog.AppendLine(result);
 
-                                Diagnostics.Debug.Log($"ffmpeg output: {result}");
+                                Diagnostics.Debug.Log(Diagnostics.Debug.CatFFmpeg, $"ffmpeg: {result}");
                             }
                         }
 
@@ -551,11 +558,31 @@ namespace FileConverter.ConversionJobs
                         {
                             exeProcess.WaitForExit();
                         }
+
+                        try { exitCode = exeProcess.ExitCode; } catch { }
+                    }
+
+                    var duration = System.DateTime.Now - passStart;
+                    Diagnostics.Debug.Log(Diagnostics.Debug.CatFFmpeg,
+                        $"{logPrefix}Pass {index + 1} DONE: exitCode={exitCode} duration={duration.TotalSeconds:F2}s");
+
+                    if (exitCode != 0)
+                    {
+                        Diagnostics.Debug.LogWarning(Diagnostics.Debug.CatFFmpeg,
+                            $"{logPrefix}ffmpeg exited with non-zero code {exitCode}. Last stderr tail:");
+                        // Dump tail of stderr for quick triage.
+                        string all = stderrLog.ToString();
+                        var tail = all.Length > 2000 ? all.Substring(all.Length - 2000) : all;
+                        foreach (var tl in tail.Split('\n').TakeLast(15))
+                        {
+                            Diagnostics.Debug.LogWarning(Diagnostics.Debug.CatFFmpeg, $"  | {tl.TrimEnd('\r')}");
+                        }
                     }
                 }
                 catch (Exception ex)
                 {
-                    Diagnostics.Debug.Log($"FFmpeg launch exception: {ex.Message}");
+                    Diagnostics.Debug.LogException(Diagnostics.Debug.CatFFmpeg,
+                        $"{logPrefix}FFmpeg launch exception", ex);
                     this.ConversionFailed(Properties.Resources.ErrorFailedToLaunchFFMPEG);
                     throw;
                 }

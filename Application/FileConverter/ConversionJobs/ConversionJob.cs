@@ -248,6 +248,9 @@ namespace FileConverter.ConversionJobs
 
             this.InputFilePath = this.initialInputPath;
 
+            Debug.Log(Debug.CatConversion,
+                $"PrepareConversion: preset='{this.ConversionPreset.FullName}' outputType={this.ConversionPreset.OutputType} input='{this.InputFilePath}' template='{this.ConversionPreset.OutputFileNameTemplate}' customCmd={this.ConversionPreset.GetSettingsValue<bool>(ConversionPreset.ConversionSettingKeys.EnableFFMPEGCustomCommand)}");
+
             string extension = System.IO.Path.GetExtension(this.initialInputPath);
             extension = extension.Substring(1, extension.Length - 1);
             string extensionCategory = Helpers.GetExtensionCategory(extension);
@@ -257,6 +260,8 @@ namespace FileConverter.ConversionJobs
             bool customCommandEnabled = this.ConversionPreset.GetSettingsValue<bool>(ConversionPreset.ConversionSettingKeys.EnableFFMPEGCustomCommand);
             if (!customCommandEnabled && !Helpers.IsOutputTypeCompatibleWithCategory(this.ConversionPreset.OutputType, extensionCategory))
             {
+                Debug.LogWarning(Debug.CatConversion,
+                    $"Input type '{extension}' (category {extensionCategory}) is not compatible with output type {this.ConversionPreset.OutputType}");
                 this.ConversionFailed(Properties.Resources.ErrorInputTypeIncompatibleWithOutputType);
                 return;
             }
@@ -369,7 +374,8 @@ namespace FileConverter.ConversionJobs
                 this.State = ConversionState.Ready;
             }
 
-            Debug.Log($"Job initialized: Preset: '{this.ConversionPreset.FullName}' Input: {this.InputFilePath} Output: {this.OutputFilePath}");
+            Debug.Log(Debug.CatConversion,
+                $"Job initialized: Preset='{this.ConversionPreset.FullName}' OutputType={this.ConversionPreset.OutputType} Input='{this.InputFilePath}' Output='{this.OutputFilePath}' Template='{this.ConversionPreset.OutputFileNameTemplate}'");
 
             if (this.State != ConversionState.Failed)
             {
@@ -389,17 +395,19 @@ namespace FileConverter.ConversionJobs
                 throw new Exception("Invalid conversion state.");
             }
 
-            Debug.Log($"Convert file {this.InputFilePath} to {this.OutputFilePath}.");
+            Debug.Log(Debug.CatConversion,
+                $"Convert START: '{this.InputFilePath}' -> '{this.OutputFilePath}' preset='{this.ConversionPreset.FullName}'");
 
             this.StartTime = DateTime.Now;
             this.State = ConversionState.InProgress;
-            
+
             try
             {
                 this.Convert();
             }
             catch (Exception exception)
             {
+                Debug.LogException(Debug.CatConversion, "Convert() threw", exception);
                 this.ConversionFailed(exception.Message);
             }
 
@@ -414,23 +422,38 @@ namespace FileConverter.ConversionJobs
                 this.OnConversionSucceed();
             }
 
+            var totalDuration = DateTime.Now - this.StartTime;
+
             if (this.State == ConversionState.Done && !this.AllOutputFilesExists())
             {
+                Debug.LogWarning(Debug.CatConversion,
+                    $"Conversion reported Done but output file missing. Paths expected:");
+                foreach (var p in this.OutputFilePaths ?? new string[0])
+                {
+                    Debug.LogWarning(Debug.CatConversion, $"  expected: '{p}'");
+                }
                 this.ConversionFailed($"Conversion appeared to succeed but output file was not found: {this.OutputFilePath}");
             }
             else if (this.State == ConversionState.Failed && this.AtLeastOneOutputFilesExists())
             {
-                Debug.Log(Properties.Resources.ErrorConversionFailedWithOutput);
+                Debug.Log(Debug.CatConversion, Properties.Resources.ErrorConversionFailedWithOutput);
             }
+
+            Debug.Log(Debug.CatConversion,
+                $"Convert END: state={this.State} duration={totalDuration.TotalSeconds:F2}s output='{this.OutputFilePath}'");
         }
 
         public virtual void Cancel()
         {
             if (!this.IsCancelable())
             {
+                Debug.Log(Debug.CatConversion,
+                    $"Cancel ignored (not cancelable): state={this.State} input='{this.InputFilePath}'");
                 return;
             }
 
+            Debug.Log(Debug.CatConversion,
+                $"Cancel requested: input='{this.InputFilePath}' state={this.State}");
             this.CancelIsRequested = true;
             this.ConversionFailed(Properties.Resources.ErrorCanceled);
         }
@@ -512,7 +535,8 @@ namespace FileConverter.ConversionJobs
 
         protected void ConversionFailed(string exitingMessage)
         {
-            Debug.Log($"Fail: {exitingMessage}");
+            Debug.LogErrorSilent(Debug.CatConversion,
+                $"ConversionFailed: {exitingMessage} (input='{this.InputFilePath}' output='{this.OutputFilePath}')");
 
             if (this.State == ConversionState.Failed)
             {
@@ -576,12 +600,16 @@ namespace FileConverter.ConversionJobs
                     string fileName = System.IO.Path.GetFileName(outputFilePath);
                     if (string.IsNullOrEmpty(dir) || !System.IO.Directory.Exists(dir))
                     {
+                        Debug.LogWarning(Debug.CatConversion,
+                            $"AllOutputFilesExists: output dir missing for sequence pattern '{outputFilePath}'");
                         return false;
                     }
 
                     // Convert %06d to * wildcard for Directory.GetFiles search.
                     string searchPattern = System.Text.RegularExpressions.Regex.Replace(fileName, @"%0?\d*d", "*");
                     var files = System.IO.Directory.GetFiles(dir, searchPattern);
+                    Debug.Log(Debug.CatConversion,
+                        $"AllOutputFilesExists: sequence pattern '{searchPattern}' in '{dir}' matched {files.Length} file(s)");
                     if (files.Length == 0)
                     {
                         return false;
@@ -592,6 +620,8 @@ namespace FileConverter.ConversionJobs
 
                 if (!System.IO.File.Exists(outputFilePath))
                 {
+                    Debug.LogWarning(Debug.CatConversion,
+                        $"AllOutputFilesExists: file missing: '{outputFilePath}'");
                     return false;
                 }
             }

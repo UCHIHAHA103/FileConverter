@@ -47,6 +47,11 @@
                 <Label Content="{Binding InformationMessage}" VerticalAlignment="Center" FontSize="13.333" HorizontalAlignment="Right"/>
             </DockPanel>
             <Button Grid.Column="1" Margin="3" Command="{Binding ShowDiagnosticsCommand}" ToolTip="{x:Static project:Resources.DiagnosticsButtonTooltip}" Style="{StaticResource TileButton}">
+                <Button.ContextMenu>
+                    <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                        <MenuItem Header="打开日志文件夹 / Open log folder" Command="{Binding OpenLogsFolderCommand}"/>
+                    </ContextMenu>
+                </Button.ContextMenu>
                 <Image HorizontalAlignment="Left" Height="48" Width="48" VerticalAlignment="Top" Source="/Resources/LogIcon.png" />
             </Button>
             <Button Grid.Column="2" Margin="3" Command="{Binding ShowSettingsCommand}" ToolTip="{x:Static project:Resources.SettingsButtonTooltip}" Style="{StaticResource TileButton}">
