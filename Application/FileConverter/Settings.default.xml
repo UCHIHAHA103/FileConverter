@@ -2326,7 +2326,7 @@
         <Settings Key="FFMPEGCustomCommand" Value="-vn -c:a libopus -b:a 128k" />
         <OutputFileNameTemplate>(p)(f)</OutputFileNameTemplate>
     </ConversionPreset>
-    <ConversionPreset Name="Extract Frames/To Png (1 fps)" OutputType="Png" IsDefaultSettings="true">
+    <ConversionPreset Name="视频转序列/逐帧转化序列" OutputType="Png" IsDefaultSettings="true">
         <InputTypes>3gp</InputTypes>
         <InputTypes>3gpp</InputTypes>
         <InputTypes>avi</InputTypes>
@@ -2348,7 +2348,35 @@
         <Settings Key="ImageRotation" Value="0" />
         <Settings Key="ImageClampSizePowerOf2" Value="False" />
         <Settings Key="ImageMaximumSize" Value="0" />
-        <OutputFileNameTemplate>(p)(f)_frame_%04d</OutputFileNameTemplate>
+        <Settings Key="EnableFFMPEGCustomCommand" Value="True" />
+        <Settings Key="FFMPEGCustomCommand" Value="-pix_fmt rgba -compression_level 6" />
+        <OutputFileNameTemplate>(p)(f)\(f)_%06d</OutputFileNameTemplate>
+    </ConversionPreset>
+    <ConversionPreset Name="视频转序列/每1秒提取关键帧" OutputType="Png" IsDefaultSettings="true">
+        <InputTypes>3gp</InputTypes>
+        <InputTypes>3gpp</InputTypes>
+        <InputTypes>avi</InputTypes>
+        <InputTypes>flv</InputTypes>
+        <InputTypes>m4v</InputTypes>
+        <InputTypes>mkv</InputTypes>
+        <InputTypes>mov</InputTypes>
+        <InputTypes>mp4</InputTypes>
+        <InputTypes>mpg</InputTypes>
+        <InputTypes>mpeg</InputTypes>
+        <InputTypes>ogv</InputTypes>
+        <InputTypes>rm</InputTypes>
+        <InputTypes>ts</InputTypes>
+        <InputTypes>webm</InputTypes>
+        <InputTypes>wmv</InputTypes>
+        <InputTypes>gif</InputTypes>
+        <InputPostConversionAction>None</InputPostConversionAction>
+        <Settings Key="ImageScale" Value="1" />
+        <Settings Key="ImageRotation" Value="0" />
+        <Settings Key="ImageClampSizePowerOf2" Value="False" />
+        <Settings Key="ImageMaximumSize" Value="0" />
+        <Settings Key="EnableFFMPEGCustomCommand" Value="True" />
+        <Settings Key="FFMPEGCustomCommand" Value="-vf fps=1 -pix_fmt rgba -compression_level 6" />
+        <OutputFileNameTemplate>(p)(f)\(f)_%06d</OutputFileNameTemplate>
     </ConversionPreset>
     <ConversionPreset Name="Burn Subtitles/To Mp4" OutputType="Mp4" IsDefaultSettings="true">
         <InputTypes>mkv</InputTypes>
