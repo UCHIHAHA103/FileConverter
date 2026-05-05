@@ -27,6 +27,7 @@ namespace FileConverter.ViewModels
         private RelayCommand showSettingsCommand;
         private RelayCommand showDiagnosticsCommand;
         private RelayCommand openLogsFolderCommand;
+        private RelayCommand minimizeToTrayCommand;
         private RelayCommand<CancelEventArgs> closeCommand;
         private RelayCommand<DragEventArgs> dropFilesCommand;
         private RelayCommand<ConversionJob> openOutputFileCommand;
@@ -67,6 +68,30 @@ namespace FileConverter.ViewModels
                     job.PropertyChanged += this.ConversionJob_PropertyChanged;
                 }
             }
+        }
+
+        /// <summary>
+        /// Called by Application when a secondary instance forwards files to us.
+        /// Adds the job to the bound collection so the UI updates live.
+        /// </summary>
+        public void AddExternalJob(ConversionJob job)
+        {
+            if (job == null)
+            {
+                return;
+            }
+
+            // ObservableCollection is not thread-safe — marshal to UI thread.
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher != null && !dispatcher.CheckAccess())
+            {
+                dispatcher.BeginInvoke((System.Action)(() => this.AddExternalJob(job)));
+                return;
+            }
+
+            this.ConversionJobs.Add(job);
+            job.PropertyChanged += this.ConversionJob_PropertyChanged;
+            this.OnPropertyChanged(nameof(this.ConversionJobs));
         }
 
         public ICommand ShowSettingsCommand
@@ -134,6 +159,30 @@ namespace FileConverter.ViewModels
                 }
 
                 return this.openLogsFolderCommand;
+            }
+        }
+
+        /// <summary>
+        /// Hide the main window and show a tray icon (title-bar "minimize to tray"
+        /// button, left of the Windows minimize glyph). The Application handles
+        /// the actual window/tray state transitions.
+        /// </summary>
+        public ICommand MinimizeToTrayCommand
+        {
+            get
+            {
+                if (this.minimizeToTrayCommand == null)
+                {
+                    this.minimizeToTrayCommand = new RelayCommand(() =>
+                    {
+                        if (System.Windows.Application.Current is FileConverter.Application app)
+                        {
+                            app.MinimizeToTray();
+                        }
+                    });
+                }
+
+                return this.minimizeToTrayCommand;
             }
         }
 

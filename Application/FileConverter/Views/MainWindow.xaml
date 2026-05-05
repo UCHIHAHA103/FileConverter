@@ -7,10 +7,16 @@
         xmlns:project="clr-namespace:FileConverter.Properties"
         xmlns:controls="clr-namespace:FileConverter.Controls"
         xmlns:behaviors="http://schemas.microsoft.com/xaml/behaviors"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         mc:Ignorable="d" x:Class="FileConverter.Views.MainWindow"
         Height="500" Width="950" MinHeight="480" MinWidth="640" WindowStartupLocation="CenterScreen" Icon="/FileConverter;component/Resources/ApplicationIcon.ico"
         AllowDrop="True" Drop="Window_Drop" DragOver="Window_DragOver"
-        DataContext="{Binding Main, Source={StaticResource Locator}}">
+        DataContext="{Binding Main, Source={StaticResource Locator}}"
+        ResizeMode="CanResize">
+    <WindowChrome.WindowChrome>
+        <!-- Custom chrome so we can add a "Minimize to tray" button next to the standard minimize glyph. -->
+        <WindowChrome CaptionHeight="32" CornerRadius="0" GlassFrameThickness="1" ResizeBorderThickness="5" UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
     <behaviors:Interaction.Triggers>
         <behaviors:EventTrigger EventName="Closing">
             <behaviors:InvokeCommandAction Command="{Binding CloseCommand}" PassEventArgsToCommand="True" />
@@ -19,6 +25,61 @@
     <Window.Resources>
         <valueConverters:ConversionJobsToProgressState x:Key="ConversionJobsToProgressState" />
         <valueConverters:ConversionJobsToProgressValue x:Key="ConversionJobsToProgressValue" />
+
+        <!-- Caption button style: flat, ~46x32 like native Windows. -->
+        <Style x:Key="CaptionButton" TargetType="Button">
+            <Setter Property="Width" Value="46" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="#FF303030" />
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bg" Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bg" Property="Background" Value="#1A000000" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bg" Property="Background" Value="#33000000" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Close button inherits caption style but turns red on hover. -->
+        <Style x:Key="CaptionCloseButton" TargetType="Button" BasedOn="{StaticResource CaptionButton}">
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Foreground" Value="White" />
+                </Trigger>
+            </Style.Triggers>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bg" Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bg" Property="Background" Value="#E81123" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bg" Property="Background" Value="#F1707A" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
     <Window.Title>
         <Binding Converter="{StaticResource ApplicationVersionToApplicationName}" Mode="OneWay" Path="(local:Application.ApplicationVersion)"/>
@@ -29,50 +90,100 @@
             ProgressValue="{Binding ConversionJobs, Converter={StaticResource ConversionJobsToProgressValue}}" />
     </Window.TaskbarItemInfo>
 
-    <Grid Margin="10">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="64" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
+    <Border BorderBrush="#FF808080" BorderThickness="1" Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="32" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
 
-        <Grid Grid.Row="0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="64" />
-                <ColumnDefinition Width="64" />
-            </Grid.ColumnDefinitions>
+            <!-- Custom title bar -->
+            <Grid Grid.Row="0" Background="#F2F2F2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
 
-            <DockPanel Grid.Column="0">
-                <Label Content="{x:Static project:Resources.ConversionQueueTitle}" VerticalAlignment="Center" FontSize="18" FontWeight="Bold"/>
-                <Label Content="{Binding InformationMessage}" VerticalAlignment="Center" FontSize="13.333" HorizontalAlignment="Right"/>
-            </DockPanel>
-            <Button Grid.Column="1" Margin="3" Command="{Binding ShowDiagnosticsCommand}" ToolTip="{x:Static project:Resources.DiagnosticsButtonTooltip}" Style="{StaticResource TileButton}">
-                <Button.ContextMenu>
-                    <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
-                        <MenuItem Header="打开日志文件夹 / Open log folder" Command="{Binding OpenLogsFolderCommand}"/>
-                    </ContextMenu>
-                </Button.ContextMenu>
-                <Image HorizontalAlignment="Left" Height="48" Width="48" VerticalAlignment="Top" Source="/Resources/LogIcon.png" />
-            </Button>
-            <Button Grid.Column="2" Margin="3" Command="{Binding ShowSettingsCommand}" ToolTip="{x:Static project:Resources.SettingsButtonTooltip}" Style="{StaticResource TileButton}">
-                <Image HorizontalAlignment="Left" Height="48" Width="48" VerticalAlignment="Top" Source="/Resources/SettingsIcon.ico" />
-            </Button>
-        </Grid>
+                <!-- Icon + title (draggable) -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
+                    <Image Source="/FileConverter;component/Resources/ApplicationIcon.ico" Width="16" Height="16" Margin="0,0,6,0" />
+                    <TextBlock Text="{Binding Title, RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Center" FontSize="12" />
+                </StackPanel>
 
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" CanContentScroll="True">
-            <Grid>
-                <ItemsControl ItemsSource="{Binding ConversionJobs}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <controls:ConversionJobControl Margin="5"></controls:ConversionJobControl>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-                <!-- Drag & drop hint (#518) — always visible as watermark -->
-                <TextBlock Text="📁 Drag &amp; Drop files here / 拖拽文件到此处" FontSize="16"
-                           Foreground="#30000000" FontWeight="Bold" IsHitTestVisible="False"
-                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                <!-- Caption buttons: tray / minimize / maximize / close -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Style="{StaticResource CaptionButton}"
+                            ToolTip="缩小到系统托盘 / Minimize to tray"
+                            Command="{Binding MinimizeToTrayCommand}">
+                        <!-- E74F = "Bar Chart"... we'd rather use a down-tray glyph. E9F5 = "Power". E7C3 = "Pin". E78B = "System". Use E944 "Move to Inbox". -->
+                        <TextBlock Text="&#xE944;" FontFamily="Segoe MDL2 Assets" />
+                    </Button>
+                    <Button Style="{StaticResource CaptionButton}"
+                            ToolTip="最小化 / Minimize"
+                            Click="MinimizeButton_Click">
+                        <TextBlock Text="&#xE921;" FontFamily="Segoe MDL2 Assets" />
+                    </Button>
+                    <Button Style="{StaticResource CaptionButton}"
+                            ToolTip="最大化 / Restore"
+                            Click="MaximizeButton_Click">
+                        <TextBlock Text="&#xE922;" FontFamily="Segoe MDL2 Assets" />
+                    </Button>
+                    <Button Style="{StaticResource CaptionCloseButton}"
+                            ToolTip="关闭 / Close"
+                            Click="CloseButton_Click">
+                        <TextBlock Text="&#xE8BB;" FontFamily="Segoe MDL2 Assets" />
+                    </Button>
+                </StackPanel>
             </Grid>
-        </ScrollViewer>
-    </Grid>
+
+            <!-- Main content -->
+            <Grid Grid.Row="1" Margin="10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="64" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="64" />
+                        <ColumnDefinition Width="64" />
+                    </Grid.ColumnDefinitions>
+
+                    <DockPanel Grid.Column="0">
+                        <Label Content="{x:Static project:Resources.ConversionQueueTitle}" VerticalAlignment="Center" FontSize="18" FontWeight="Bold"/>
+                        <Label Content="{Binding InformationMessage}" VerticalAlignment="Center" FontSize="13.333" HorizontalAlignment="Right"/>
+                    </DockPanel>
+                    <Button Grid.Column="1" Margin="3" Command="{Binding ShowDiagnosticsCommand}" ToolTip="{x:Static project:Resources.DiagnosticsButtonTooltip}" Style="{StaticResource TileButton}">
+                        <Button.ContextMenu>
+                            <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                <MenuItem Header="打开日志文件夹 / Open log folder" Command="{Binding OpenLogsFolderCommand}"/>
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                        <Image HorizontalAlignment="Left" Height="48" Width="48" VerticalAlignment="Top" Source="/Resources/LogIcon.png" />
+                    </Button>
+                    <Button Grid.Column="2" Margin="3" Command="{Binding ShowSettingsCommand}" ToolTip="{x:Static project:Resources.SettingsButtonTooltip}" Style="{StaticResource TileButton}">
+                        <Image HorizontalAlignment="Left" Height="48" Width="48" VerticalAlignment="Top" Source="/Resources/SettingsIcon.ico" />
+                    </Button>
+                </Grid>
+
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" CanContentScroll="True">
+                    <Grid>
+                        <ItemsControl ItemsSource="{Binding ConversionJobs}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <controls:ConversionJobControl Margin="5"></controls:ConversionJobControl>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <!-- Drag & drop hint (#518) — always visible as watermark -->
+                        <TextBlock Text="📁 Drag &amp; Drop files here / 拖拽文件到此处" FontSize="16"
+                                   Foreground="#30000000" FontWeight="Bold" IsHitTestVisible="False"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Grid>
+                </ScrollViewer>
+            </Grid>
+        </Grid>
+    </Border>
 </Window>

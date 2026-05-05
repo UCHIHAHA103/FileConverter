@@ -110,12 +110,27 @@ namespace FileConverter
                 return;
             }
 
+            // Single-instance gate. If another instance is already running,
+            // forward our payload (preset + file list) to it over a named pipe
+            // and exit silently — the primary instance will append the new jobs
+            // to its existing conversion queue, so the user sees ONE window
+            // instead of multiple cluttered ones.
+            if (!SingleInstanceManager.TryAcquirePrimary())
+            {
+                this.ForwardArgumentsToPrimaryAndExit();
+                return;
+            }
+
             // Apply dark theme if Windows is in dark mode.
             this.ApplySystemTheme();
 
             this.RegisterServices();
 
             this.Initialize();
+
+            // Listen for subsequent instances forwarding their payload to us.
+            SingleInstanceManager.PayloadReceived += this.OnSingleInstancePayloadReceived;
+            SingleInstanceManager.StartPipeListener();
 
             // Navigate to the wanted view.
             INavigationService navigationService = Ioc.Default.GetRequiredService<INavigationService>();
@@ -173,6 +188,8 @@ namespace FileConverter
             base.OnExit(e);
 
             this.DisposeTrayIcon();
+
+            try { SingleInstanceManager.Shutdown(); } catch { }
 
             Debug.Log("Exit application.");
 
@@ -549,9 +566,11 @@ namespace FileConverter
 
         private void ConversionService_ConversionJobsTerminated(object sender, ConversionJobsTerminatedEventArgs e)
         {
+            // NOTE: Do NOT unsubscribe here — in single-instance mode, additional
+            // right-click launches enqueue new jobs via OnSingleInstancePayloadReceived,
+            // which re-starts the conversion loop. That loop fires this event each
+            // time its current queue completes, so we must remain subscribed.
             IConversionService conversionService = Ioc.Default.GetRequiredService<IConversionService>();
-            conversionService.ConversionJobsTerminated -= this.ConversionService_ConversionJobsTerminated;
-
             ISettingsService settingsService = Ioc.Default.GetRequiredService<ISettingsService>();
 
             // Show tray notification if enabled.
@@ -589,9 +608,13 @@ namespace FileConverter
                 }
             }
 
-            // Dispose tray icon.
-            this.DisposeTrayIcon();
+            // NOTE: We intentionally do NOT dispose the tray icon here — if the
+            // user manually minimized to tray, they expect it to remain available
+            // to restore the window, independently of whether their jobs finished.
 
+            // If there is no main window visible AND auto-exit is enabled, honor
+            // the legacy shutdown-on-idle behaviour. Otherwise keep the process
+            // alive so follow-up right-click launches can enqueue more files.
             if (!settingsService.Settings.ExitApplicationWhenConversionsFinished)
             {
                 return;
@@ -730,7 +753,7 @@ namespace FileConverter
                 this.trayIcon = new System.Windows.Forms.NotifyIcon
                 {
                     Icon = appIcon,
-                    Text = "File Converter — Converting...\n转换中...",
+                    Text = "File Converter",
                     Visible = true,
                 };
 
@@ -738,11 +761,7 @@ namespace FileConverter
                 var contextMenu = new System.Windows.Forms.ContextMenuStrip();
                 contextMenu.Items.Add("Show Window / 显示窗口", null, (s, e) =>
                 {
-                    this.Dispatcher.BeginInvoke((System.Action)(() =>
-                    {
-                        INavigationService nav = Ioc.Default.GetRequiredService<INavigationService>();
-                        nav.Show(Pages.Main);
-                    }));
+                    this.Dispatcher.BeginInvoke((System.Action)(() => this.RestoreFromTray()));
                 });
                 contextMenu.Items.Add("Exit / 退出", null, (s, e) =>
                 {
@@ -751,14 +770,19 @@ namespace FileConverter
                 });
                 this.trayIcon.ContextMenuStrip = contextMenu;
 
-                // Double-click to show window.
+                // Single left click to show window (preferred UX per #tray-button).
+                this.trayIcon.MouseClick += (s, e) =>
+                {
+                    if (e.Button == System.Windows.Forms.MouseButtons.Left)
+                    {
+                        this.Dispatcher.BeginInvoke((System.Action)(() => this.RestoreFromTray()));
+                    }
+                };
+
+                // Keep legacy double-click behaviour as a no-op-safe fallback.
                 this.trayIcon.DoubleClick += (s, e) =>
                 {
-                    this.Dispatcher.BeginInvoke((System.Action)(() =>
-                    {
-                        INavigationService nav = Ioc.Default.GetRequiredService<INavigationService>();
-                        nav.Show(Pages.Main);
-                    }));
+                    this.Dispatcher.BeginInvoke((System.Action)(() => this.RestoreFromTray()));
                 };
 
                 Debug.Log("Tray icon initialized (minimize to tray mode).");
@@ -866,6 +890,216 @@ namespace FileConverter
                     // Ignore disposal errors (icon may already be disposed by another thread).
                 }
             }
+        }
+
+        /// <summary>
+        /// Hide the main window and show the tray icon. Used by the new
+        /// "minimize to tray" title-bar button in MainWindow. Safe to call
+        /// multiple times.
+        /// </summary>
+        public void MinimizeToTray()
+        {
+            this.Dispatcher.VerifyAccess();
+
+            if (this.trayIcon == null)
+            {
+                this.InitializeTrayIcon();
+            }
+
+            foreach (Window w in this.Windows)
+            {
+                if (w is Views.MainWindow)
+                {
+                    w.Hide();
+                }
+            }
+
+            // Cancel any pending auto-exit countdown triggered by ConversionJobsTerminated.
+            this.cancelAutoExit = true;
+        }
+
+        /// <summary>
+        /// Show the main window and hide the tray icon. Used by tray
+        /// single/double-click and the context-menu "Show Window" item.
+        /// </summary>
+        public void RestoreFromTray()
+        {
+            this.Dispatcher.VerifyAccess();
+
+            INavigationService nav = Ioc.Default.GetRequiredService<INavigationService>();
+            nav.Show(Pages.Main);
+
+            foreach (Window w in this.Windows)
+            {
+                if (w is Views.MainWindow mw)
+                {
+                    if (mw.WindowState == WindowState.Minimized)
+                    {
+                        mw.WindowState = WindowState.Normal;
+                    }
+
+                    mw.Show();
+                    mw.Activate();
+                    mw.Topmost = true;
+                    mw.Topmost = false;
+                    mw.Focus();
+                }
+            }
+
+            this.DisposeTrayIcon();
+        }
+
+        /// <summary>
+        /// Secondary-instance code path: a first instance is already running.
+        /// Parse our own command line looking for --conversion-preset, the
+        /// positional file arguments and --input-files, then push them through
+        /// the named pipe to the primary. Exit silently afterwards.
+        /// </summary>
+        private void ForwardArgumentsToPrimaryAndExit()
+        {
+            try
+            {
+                string[] args = Environment.GetCommandLineArgs();
+                string preset = null;
+                var filePaths = new List<string>();
+
+                for (int i = 1; i < args.Length; i++)
+                {
+                    string a = args[i];
+                    if (string.IsNullOrEmpty(a))
+                    {
+                        continue;
+                    }
+
+                    if (a.StartsWith("--"))
+                    {
+                        string key = a.Substring(2).ToLowerInvariant();
+                        if (key == "conversion-preset" && i < args.Length - 1)
+                        {
+                            preset = args[i + 1];
+                            i++;
+                        }
+                        else if (key == "input-files" && i < args.Length - 1)
+                        {
+                            string listPath = args[i + 1];
+                            i++;
+                            try
+                            {
+                                foreach (string line in File.ReadAllLines(listPath))
+                                {
+                                    if (!string.IsNullOrWhiteSpace(line))
+                                    {
+                                        filePaths.Add(line);
+                                    }
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Debug.Log($"Secondary instance: failed to read input list '{listPath}': {ex.Message}");
+                            }
+                        }
+                        // Silently ignore other flags (--settings, --verbose, etc).
+                    }
+                    else
+                    {
+                        filePaths.Add(a);
+                    }
+                }
+
+                if (filePaths.Count == 0)
+                {
+                    // No files to forward — just tell the primary to surface its window.
+                    // Sending an empty payload with preset="__FC_SHOW_WINDOW__" signals focus.
+                    SingleInstanceManager.SendPayloadToPrimary("__FC_SHOW_WINDOW__", new List<string> { "__focus__" });
+                }
+                else
+                {
+                    SingleInstanceManager.SendPayloadToPrimary(preset, filePaths);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.Log($"ForwardArgumentsToPrimaryAndExit failed: {ex.Message}");
+            }
+
+            // Bypass WPF OnExit (no DI registered) to get a clean exit code.
+            Environment.Exit(0);
+        }
+
+        /// <summary>
+        /// Primary instance: another copy was launched and pushed its payload
+        /// to us. Create conversion jobs on the UI thread, append them to the
+        /// existing queue, and resume the conversion loop. Also surfaces the
+        /// window so the user sees the updated queue.
+        /// </summary>
+        private void OnSingleInstancePayloadReceived(object sender, SingleInstancePayload payload)
+        {
+            this.Dispatcher.BeginInvoke((System.Action)(() =>
+            {
+                try
+                {
+                    // Special "bring to front" signal from a secondary instance
+                    // launched with no files (e.g. user double-clicked the exe).
+                    if (payload.ConversionPresetName == "__FC_SHOW_WINDOW__")
+                    {
+                        this.RestoreFromTray();
+                        return;
+                    }
+
+                    ISettingsService settingsService = Ioc.Default.GetRequiredService<ISettingsService>();
+                    if (settingsService.Settings == null)
+                    {
+                        Debug.LogError("Secondary-instance payload received but settings are unavailable.");
+                        return;
+                    }
+
+                    ConversionPreset preset = null;
+                    if (!string.IsNullOrEmpty(payload.ConversionPresetName))
+                    {
+                        preset = settingsService.Settings.GetPresetFromName(payload.ConversionPresetName);
+                    }
+
+                    if (preset == null)
+                    {
+                        Debug.LogWarning(Debug.CatLifecycle, $"Secondary-instance payload: unknown preset '{payload.ConversionPresetName}', dropping {payload.FilePaths.Count} file(s).");
+                        return;
+                    }
+
+                    IConversionService conversionService = Ioc.Default.GetRequiredService<IConversionService>();
+                    ViewModels.MainViewModel mainVm = this.TryFindResource("Locator") is ViewModelLocator loc ? loc.Main : null;
+
+                    int added = 0;
+                    foreach (string path in payload.FilePaths)
+                    {
+                        try
+                        {
+                            ConversionJobs.ConversionJob job = ConversionJobFactory.Create(preset, path);
+                            conversionService.RegisterConversionJob(job);
+                            mainVm?.AddExternalJob(job);
+                            added++;
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.Log($"Failed to create job for '{path}': {ex.Message}");
+                        }
+                    }
+
+                    if (added > 0)
+                    {
+                        // Kick the conversion service again — if the previous run finished
+                        // it will start processing the newly added jobs.
+                        conversionService.ConvertFilesAsync();
+                        this.cancelAutoExit = true; // More work just arrived.
+                    }
+
+                    // Bring the main window up (or show it if hidden to tray).
+                    this.RestoreFromTray();
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogException(Debug.CatLifecycle, "OnSingleInstancePayloadReceived dispatcher body", ex);
+                }
+            }));
         }
 
         private void ApplySystemTheme()
