@@ -48,6 +48,17 @@ namespace FileConverter.ConversionJobs
                 conversionPreset.OutputType == OutputType.Png ||
                 conversionPreset.OutputType == OutputType.Webp)
             {
+                // Video inputs must go through FFmpeg (ImageMagick can only read
+                // the first frame of a container). This covers use cases like
+                // "extract every frame as PNG" / "extract keyframes per second".
+                string category = Helpers.GetExtensionCategory(inputFileExtension);
+                if (category == Helpers.InputCategoryNames.Video)
+                {
+                    Diagnostics.Debug.Log(Diagnostics.Debug.CatConversion,
+                        $"Factory: Video input ('{inputFileExtension}') -> image output ({conversionPreset.OutputType}). Using FFmpeg.");
+                    return new ConversionJob_FFMPEG(conversionPreset, inputFilePath);
+                }
+
                 return new ConversionJob_ImageMagick(conversionPreset, inputFilePath);
             }
             

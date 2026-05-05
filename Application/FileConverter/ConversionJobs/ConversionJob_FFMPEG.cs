@@ -383,12 +383,44 @@ namespace FileConverter.ConversionJobs
                         string scaleArgs = string.Empty;
                         if (Math.Abs(scaleFactor - 1f) >= 0.005f)
                         {
-                            scaleArgs = $"-vf scale=iw*{scaleFactor.ToString("#.##", CultureInfo.InvariantCulture)}:ih*{scaleFactor.ToString("#.##", CultureInfo.InvariantCulture)}";
+                            scaleArgs = $"scale=iw*{scaleFactor.ToString("#.##", CultureInfo.InvariantCulture)}:ih*{scaleFactor.ToString("#.##", CultureInfo.InvariantCulture)}";
                         }
+
+                        // Detect video-to-PNG sequence output (output path contains %NNd).
+                        // In this case, ffmpeg emits one file per decoded frame.
+                        bool isSequenceOutput = System.Text.RegularExpressions.Regex.IsMatch(
+                            this.OutputFilePath, @"%0?\d*d");
+
+                        // Optional frame-rate downsampling for sequence output
+                        // (VideoFrameExtractFps = "1" means 1 frame/sec, etc.).
+                        string fpsFilter = string.Empty;
+                        if (isSequenceOutput)
+                        {
+                            string fpsStr = this.ConversionPreset.GetSettingsValue<string>(
+                                ConversionPreset.ConversionSettingKeys.VideoFrameExtractFps) ?? string.Empty;
+                            fpsStr = fpsStr.Trim();
+                            if (!string.IsNullOrEmpty(fpsStr) && fpsStr != "0" && !fpsStr.Equals("all", StringComparison.OrdinalIgnoreCase))
+                            {
+                                fpsFilter = $"fps={fpsStr}";
+                            }
+                        }
+
+                        // Assemble -vf (video filter chain). Only include -vf if we have
+                        // at least one filter; otherwise ffmpeg errors on empty vf.
+                        var filters = new System.Collections.Generic.List<string>();
+                        if (!string.IsNullOrEmpty(fpsFilter)) { filters.Add(fpsFilter); }
+                        if (!string.IsNullOrEmpty(scaleArgs)) { filters.Add(scaleArgs); }
+                        string vfArg = filters.Count > 0 ? "-vf " + string.Join(",", filters) : string.Empty;
+
+                        // For sequence output, explicitly force image2 muxer so ffmpeg
+                        // writes all decoded frames (not just the first).
+                        string muxerArg = isSequenceOutput ? "-f image2" : string.Empty;
 
                         // http://www.howtogeek.com/203979/is-the-png-format-lossless-since-it-has-a-compression-parameter/
                         // -pix_fmt rgba preserves alpha/transparency channel (#676 #129).
-                        string encoderArgs = $"-pix_fmt rgba -compression_level 100 {scaleArgs}";
+                        // compression_level valid range is 0-100 in libavcodec (PNG effort).
+                        string encoderArgs = string.Join(" ", new[] { "-pix_fmt rgba", "-compression_level 6", vfArg, muxerArg }
+                            .Where(s => !string.IsNullOrEmpty(s)));
 
                         string arguments = $"{baseArgs} -i \"{this.InputFilePath}\" {encoderArgs} \"{this.OutputFilePath}\"";
 

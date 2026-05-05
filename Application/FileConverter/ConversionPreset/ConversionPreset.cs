@@ -550,6 +550,7 @@ namespace FileConverter
                     this.InitializeSettingsValue(ConversionPreset.ConversionSettingKeys.ImageRotation, "0");
                     this.InitializeSettingsValue(ConversionPreset.ConversionSettingKeys.ImageClampSizePowerOf2, "False");
                     this.InitializeSettingsValue(ConversionPreset.ConversionSettingKeys.ImageMaximumSize, "0");
+                    this.InitializeSettingsValue(ConversionPreset.ConversionSettingKeys.VideoFrameExtractFps, "all");
                     break;
 
                 case OutputType.Jpg:
@@ -643,6 +644,16 @@ namespace FileConverter
             public const string VideoRotation = "VideoRotation";
             public const string VideoFramesPerSecond = "VideoFramesPerSecond";
             public const string FFMPEGCustomCommand = "FFMPEGCustomCommand";
+
+            /// <summary>
+            /// Frame rate for video-to-image sequence extraction ("VideoFrameExtractFps").
+            /// - "" / absent / "0" / "all" -> extract every frame.
+            /// - "1" -> 1 frame per second (adds "-vf fps=1").
+            /// - "0.5" -> 1 frame every 2 seconds, etc.
+            /// Only interpreted by ConversionJob_FFMPEG's Png/Jpg/Webp cases when
+            /// the output path contains a %Nd sequence pattern.
+            /// </summary>
+            public const string VideoFrameExtractFps = "VideoFrameExtractFps";
 
             public const string EnableAudio = "EnableAudio";
             public const string EnableVideo = "EnableVideo";
