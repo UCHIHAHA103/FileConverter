@@ -546,6 +546,29 @@ namespace FileConverter.ConversionJobs
             for (int index = 0; index < this.OutputFilePaths.Length; index++)
             {
                 string outputFilePath = this.OutputFilePaths[index];
+
+                // Handle ffmpeg sequence output pattern like "path/prefix_%06d.png".
+                // Check if at least one file matching the pattern exists in the output directory.
+                if (System.Text.RegularExpressions.Regex.IsMatch(outputFilePath, @"%0?\d*d"))
+                {
+                    string dir = System.IO.Path.GetDirectoryName(outputFilePath);
+                    string fileName = System.IO.Path.GetFileName(outputFilePath);
+                    if (string.IsNullOrEmpty(dir) || !System.IO.Directory.Exists(dir))
+                    {
+                        return false;
+                    }
+
+                    // Convert %06d to * wildcard for Directory.GetFiles search.
+                    string searchPattern = System.Text.RegularExpressions.Regex.Replace(fileName, @"%0?\d*d", "*");
+                    var files = System.IO.Directory.GetFiles(dir, searchPattern);
+                    if (files.Length == 0)
+                    {
+                        return false;
+                    }
+
+                    continue;
+                }
+
                 if (!System.IO.File.Exists(outputFilePath))
                 {
                     return false;
@@ -560,6 +583,24 @@ namespace FileConverter.ConversionJobs
             for (int index = 0; index < this.OutputFilePaths.Length; index++)
             {
                 string outputFilePath = this.OutputFilePaths[index];
+
+                // Handle ffmpeg sequence output pattern.
+                if (System.Text.RegularExpressions.Regex.IsMatch(outputFilePath, @"%0?\d*d"))
+                {
+                    string dir = System.IO.Path.GetDirectoryName(outputFilePath);
+                    string fileName = System.IO.Path.GetFileName(outputFilePath);
+                    if (!string.IsNullOrEmpty(dir) && System.IO.Directory.Exists(dir))
+                    {
+                        string searchPattern = System.Text.RegularExpressions.Regex.Replace(fileName, @"%0?\d*d", "*");
+                        if (System.IO.Directory.GetFiles(dir, searchPattern).Length > 0)
+                        {
+                            return true;
+                        }
+                    }
+
+                    continue;
+                }
+
                 if (System.IO.File.Exists(outputFilePath))
                 {
                     return true;
