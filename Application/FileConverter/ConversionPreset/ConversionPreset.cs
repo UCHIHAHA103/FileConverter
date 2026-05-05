@@ -396,6 +396,19 @@ namespace FileConverter
                 return;
             }
 
+            // Skip compatibility check when custom FFmpeg command is enabled —
+            // custom commands can handle any input→output combination (e.g., video→PNG frames).
+            bool customCommandEnabled = false;
+            if (this.settings.ContainsKey(ConversionSettingKeys.EnableFFMPEGCustomCommand))
+            {
+                bool.TryParse(this.settings[ConversionSettingKeys.EnableFFMPEGCustomCommand], out customCommandEnabled);
+            }
+
+            if (customCommandEnabled)
+            {
+                return;
+            }
+
             for (int index = 0; index < this.inputTypes.Count; index++)
             {
                 string inputType = this.inputTypes[index];
