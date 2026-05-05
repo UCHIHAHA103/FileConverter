@@ -573,9 +573,11 @@ namespace FileConverter.ConversionJobs
                         // Dump tail of stderr for quick triage.
                         string all = stderrLog.ToString();
                         var tail = all.Length > 2000 ? all.Substring(all.Length - 2000) : all;
-                        foreach (var tl in tail.Split('\n').TakeLast(15))
+                        var lines = tail.Split('\n');
+                        int startIdx = System.Math.Max(0, lines.Length - 15);
+                        for (int i = startIdx; i < lines.Length; i++)
                         {
-                            Diagnostics.Debug.LogWarning(Diagnostics.Debug.CatFFmpeg, $"  | {tl.TrimEnd('\r')}");
+                            Diagnostics.Debug.LogWarning(Diagnostics.Debug.CatFFmpeg, $"  | {lines[i].TrimEnd('\r')}");
                         }
                     }
                 }
