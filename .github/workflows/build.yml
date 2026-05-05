@@ -120,15 +120,35 @@ jobs:
         run: |
           # Build in dependency order so FileConverter's PostBuild can copy
           # uninstall.exe into its TargetDir (required by Installer Product.wxs).
+          # $(SolutionDir) must be passed explicitly because we're building
+          # .csproj files directly (sln normally provides it). Note the trailing
+          # backslash: MSBuild's $(SolutionDir) convention always ends with '\'.
+          $slnDir = (Resolve-Path .).Path
+          if (-not $slnDir.EndsWith('\')) { $slnDir = "$slnDir\" }
+          Write-Host "SolutionDir = $slnDir"
+
           # 1) Uninstaller first (produces uninstall.exe)
-          msbuild Application\Uninstaller\Uninstaller.csproj /restore /t:Rebuild /p:Configuration=Release /p:Platform=x64 /m /v:normal /nologo
+          msbuild Application\Uninstaller\Uninstaller.csproj /restore /t:Rebuild /p:Configuration=Release /p:Platform=x64 /p:SolutionDir="$slnDir" /m /v:normal /nologo
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           # 2) FileConverterExtension (shell ext DLL)
-          msbuild Application\FileConverterExtension\FileConverterExtension.csproj /restore /t:Rebuild /p:Configuration=Release /p:Platform=x64 /m /v:normal /nologo
+          msbuild Application\FileConverterExtension\FileConverterExtension.csproj /restore /t:Rebuild /p:Configuration=Release /p:Platform=x64 /p:SolutionDir="$slnDir" /m /v:normal /nologo
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          # 3) FileConverter (main app) — its PostBuild copies uninstall.exe into its bin
-          msbuild Application\FileConverter\FileConverter.csproj /restore /t:Rebuild /p:Configuration=Release /p:Platform=x64 /m /v:normal /nologo
+          # 3) FileConverter (main app) — its PostBuild copies uninstall.exe + Middleware files
+          msbuild Application\FileConverter\FileConverter.csproj /restore /t:Rebuild /p:Configuration=Release /p:Platform=x64 /p:SolutionDir="$slnDir" /m /v:normal /nologo
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          # Sanity check: PostBuild must have placed these files in FileConverter's bin.
+          $binDir = "Application\FileConverter\bin\x64\Release"
+          $required = @("ffmpeg.exe", "gsdll64.dll", "gswin64c.exe", "uninstall.exe", "Settings.default.xml")
+          foreach ($f in $required) {
+              $full = Join-Path $binDir $f
+              if (Test-Path $full) {
+                  Write-Host "OK: $full ($((Get-Item $full).Length) bytes)"
+              } else {
+                  Write-Error "MISSING after PostBuild: $full"
+                  exit 1
+              }
+          }
 
       # Touch all compiled outputs with "now" so timestamps reflect actual build
       # completion time (not some PE linker timestamp written in UTC that looks
@@ -168,7 +188,10 @@ jobs:
         # BuildProjectReferences=false prevents this step from re-building the
         # FileConverter project, which would overwrite the timestamps we just
         # normalized above.
-        run: msbuild Installer\Installer.wixproj /restore /p:Configuration=Release /p:Platform=x64 /p:BuildProjectReferences=false /m /v:normal /nologo
+        run: |
+          $slnDir = (Resolve-Path .).Path
+          if (-not $slnDir.EndsWith('\')) { $slnDir = "$slnDir\" }
+          msbuild Installer\Installer.wixproj /restore /p:Configuration=Release /p:Platform=x64 /p:SolutionDir="$slnDir" /p:BuildProjectReferences=false /m /v:normal /nologo
 
       - name: Dump diagnostics on failure
         if: failure()
