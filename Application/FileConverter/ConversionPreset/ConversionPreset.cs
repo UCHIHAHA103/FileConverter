@@ -130,7 +130,15 @@ namespace FileConverter
                 this.outputType = value;
                 this.InitializeDefaultSettings(this.outputType);
                 this.OnPropertyChanged();
-                this.CoerceInputTypes();
+
+                // Only coerce at runtime (when inputTypes is already populated).
+                // During deserialization, inputTypes is null/empty here because XML
+                // elements are processed in order: OutputType → InputTypes → Settings.
+                // CoerceInputTypes will run in OnDeserializationComplete() instead.
+                if (this.inputTypes != null && this.inputTypes.Count > 0)
+                {
+                    this.CoerceInputTypes();
+                }
             }
         }
 
