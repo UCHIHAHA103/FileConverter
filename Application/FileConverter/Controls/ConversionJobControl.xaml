@@ -28,7 +28,7 @@
                     <ColumnDefinition Width="*" MinWidth="100" />
                 </Grid.ColumnDefinitions>
 
-                <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding OutputFilePath}" Foreground="#DD000000" FontWeight="Bold" />
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding OutputDisplayPath}" Foreground="#DD000000" FontWeight="Bold" />
 
                 <StackPanel Grid.Row="1" Grid.Column="0" Margin="10,0,0,0">
                     <WrapPanel>

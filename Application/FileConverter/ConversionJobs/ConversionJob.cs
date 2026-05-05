@@ -93,6 +93,26 @@ namespace FileConverter.ConversionJobs
             }
         }
 
+        /// <summary>
+        /// User-friendly version of OutputFilePath.
+        /// Replaces ffmpeg sequence patterns like %06d with a readable placeholder
+        /// (e.g. "序号") so users don't see cryptic formatting codes in the UI.
+        /// </summary>
+        public string OutputDisplayPath
+        {
+            get
+            {
+                string path = this.OutputFilePath;
+                if (string.IsNullOrEmpty(path))
+                {
+                    return string.Empty;
+                }
+
+                // Replace %06d / %04d / %d with a friendly placeholder.
+                return System.Text.RegularExpressions.Regex.Replace(path, @"%0?\d*d", "序号");
+            }
+        }
+
         public ConversionState State
         {
             get => this.state;
@@ -189,6 +209,7 @@ namespace FileConverter.ConversionJobs
             {
                 this.currentOutputFilePathIndex = value;
                 this.NotifyPropertyChanged(nameof(this.OutputFilePath));
+                this.NotifyPropertyChanged(nameof(this.OutputDisplayPath));
             }
         }
 
