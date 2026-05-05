@@ -77,9 +77,30 @@ jobs:
       # Build entire solution with classic msbuild.exe, exactly like VS 2022.
       # /restore lets MSBuild handle all package resolution itself (avoids
       # conflicts from the earlier dotnet restore of the wixproj).
+      - name: Clean stale bin/obj (avoid MSI picking up cached old exe)
+        shell: pwsh
+        run: |
+          Write-Host "=== Cleaning stale bin/obj folders ==="
+          $paths = @(
+            "Application\FileConverter\bin",
+            "Application\FileConverter\obj",
+            "Application\FileConverterExtension\bin",
+            "Application\FileConverterExtension\obj",
+            "Application\Uninstaller\bin",
+            "Application\Uninstaller\obj",
+            "Installer\bin",
+            "Installer\obj"
+          )
+          foreach ($p in $paths) {
+            if (Test-Path $p) {
+              Remove-Item $p -Recurse -Force -ErrorAction SilentlyContinue
+              Write-Host "Cleaned: $p"
+            }
+          }
+
       - name: Build Solution (Release|x64)
         shell: pwsh
-        run: msbuild FileConverter.sln /restore /p:Configuration=Release /p:Platform=x64 /m /v:normal /nologo
+        run: msbuild FileConverter.sln /restore /t:Rebuild /p:Configuration=Release /p:Platform=x64 /m /v:normal /nologo
 
       - name: Dump diagnostics on failure
         if: failure()
