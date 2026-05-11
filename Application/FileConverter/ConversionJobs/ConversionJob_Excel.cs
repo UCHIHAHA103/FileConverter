@@ -83,7 +83,7 @@ namespace FileConverter.ConversionJobs
 
                 ConversionPreset intermediatePreset = new ConversionPreset("Pdf to image", this.ConversionPreset, "pdf");
                 this.pdf2ImageConversionJob = ConversionJobFactory.Create(intermediatePreset, this.intermediateFilePath);
-                this.pdf2ImageConversionJob.PrepareConversion(this.OutputFilePaths);
+                this.pdf2ImageConversionJob.PrepareConversion(null, this.OutputFilePaths);
             }
         }
 

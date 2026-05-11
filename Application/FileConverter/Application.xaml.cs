@@ -166,9 +166,9 @@ namespace FileConverter
                     bool allOk = true;
 
                     IConversionService waitConvService = Ioc.Default.GetRequiredService<IConversionService>();
-                    waitConvService.ConversionJobsTerminated += (sender, e) =>
+                    waitConvService.ConversionJobsTerminated += (sender, waitArgs) =>
                     {
-                        allOk = e.AllConversionsSucceed;
+                        allOk = waitArgs.AllConversionsSucceed;
                         done.Set();
                     };
                     waitConvService.ConvertFilesAsync();
@@ -606,7 +606,7 @@ namespace FileConverter
                         if (!first) { Console.Write(","); }
 
                         first = false;
-                        string inputs = string.Join(",", p.InputTypes ?? new string[0]);
+                        string inputs = string.Join(",", p.InputTypes ?? new System.Collections.Generic.List<string>());
                         Console.Write(
                             $"{{\"name\":{EscapeJson(p.FullName)}," +
                             $"\"outputType\":\"{p.OutputType}\"," +
@@ -619,7 +619,7 @@ namespace FileConverter
                 {
                     foreach (var p in presets)
                     {
-                        string inputs = string.Join(",", p.InputTypes ?? new string[0]);
+                        string inputs = string.Join(",", p.InputTypes ?? new System.Collections.Generic.List<string>());
                         Console.WriteLine($"{p.FullName,-55} -> {p.OutputType,-8}  [{inputs}]");
                     }
                 }
