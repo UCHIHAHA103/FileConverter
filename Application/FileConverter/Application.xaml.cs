@@ -71,7 +71,15 @@ namespace FileConverter
         [DllImport("kernel32.dll")]
         static extern bool AttachConsole(uint dwProcessId);
 
+        [DllImport("kernel32.dll")]
+        static extern IntPtr GetStdHandle(int nStdHandle);
+
+        [DllImport("kernel32.dll")]
+        static extern bool SetConsoleOutputCP(uint wCodePageID);
+
         const uint ATTACH_PARENT_PROCESS = 0x0ffffffff;
+        const int STD_OUTPUT_HANDLE = -11;
+        const int STD_ERROR_HANDLE  = -12;
 
         public event EventHandler<ApplicationTerminateArgs> OnApplicationTerminate;
 
@@ -585,6 +593,38 @@ namespace FileConverter
             if (this.probeMode || this.listPresetsMode || this.progressMode)
             {
                 Diagnostics.Debug.SilentConsoleMode = true;
+
+                // WPF applications use /SUBSYSTEM:WINDOWS so their Console.Out is not
+                // wired to the process's stdout file descriptor.  AttachConsole() fixes
+                // interactive TTYs, but not PowerShell pipes.  Explicitly redirect
+                // Console.Out / Console.Error to the real standard handles so that our
+                // structured output reaches the caller even through a pipe.
+                try
+                {
+                    SetConsoleOutputCP(65001); // UTF-8
+                    var stdoutHandle = new Microsoft.Win32.SafeHandles.SafeFileHandle(
+                        GetStdHandle(STD_OUTPUT_HANDLE), ownsHandle: false);
+                    if (!stdoutHandle.IsInvalid)
+                    {
+                        var writer = new System.IO.StreamWriter(
+                            new System.IO.FileStream(stdoutHandle, System.IO.FileAccess.Write),
+                            new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false))
+                        { AutoFlush = true };
+                        Console.SetOut(writer);
+                    }
+
+                    var stderrHandle = new Microsoft.Win32.SafeHandles.SafeFileHandle(
+                        GetStdHandle(STD_ERROR_HANDLE), ownsHandle: false);
+                    if (!stderrHandle.IsInvalid)
+                    {
+                        var errWriter = new System.IO.StreamWriter(
+                            new System.IO.FileStream(stderrHandle, System.IO.FileAccess.Write),
+                            new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false))
+                        { AutoFlush = true };
+                        Console.SetError(errWriter);
+                    }
+                }
+                catch { /* best effort — Console output may still not work in all hosts */ }
             }
             ISettingsService settingsService = Ioc.Default.GetRequiredService<ISettingsService>();
             if (settingsService.Settings == null)
