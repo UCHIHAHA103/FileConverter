@@ -578,6 +578,14 @@ namespace FileConverter
 
         private void RunConversions(List<string> filePaths, string conversionPresetName, string outputDirectory = null)
         {
+            // ── silent console for CLI output modes ───────────────────────────────────
+            // When outputting structured data to stdout (--probe, --list-presets,
+            // --progress), any stray Debug.Log() output would corrupt the caller's
+            // parser. Suppress all console output; everything still goes to the log file.
+            if (this.probeMode || this.listPresetsMode || this.progressMode)
+            {
+                Diagnostics.Debug.SilentConsoleMode = true;
+            }
             ISettingsService settingsService = Ioc.Default.GetRequiredService<ISettingsService>();
             if (settingsService.Settings == null)
             {

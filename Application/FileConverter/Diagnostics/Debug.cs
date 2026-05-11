@@ -116,6 +116,15 @@ namespace FileConverter.Diagnostics
 
         public static string PersistentLogPath => Debug.persistentLogPath;
 
+        /// <summary>
+        /// When true, <see cref="LogInternal"/> suppresses ALL console output
+        /// (stdout and stderr alike). Used by CLI output-only modes such as
+        /// --probe, --list-presets, and --progress, where stdout carries
+        /// structured data and any stray diagnostic text would corrupt parsing.
+        /// Errors are still written to the persistent log file.
+        /// </summary>
+        public static bool SilentConsoleMode { get; set; }
+
         public static string DiagnosticsFolderPath => Debug.diagnosticsFolderPath;
 
         /// <summary>
@@ -236,7 +245,7 @@ namespace FileConverter.Diagnostics
             int threadId = currentThread.ManagedThreadId;
 
             // Display main thread logs in standard output.
-            if (threadId == Debug.mainThreadId)
+            if (threadId == Debug.mainThreadId && !Debug.SilentConsoleMode)
             {
                 try
                 {
