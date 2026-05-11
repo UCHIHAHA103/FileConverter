@@ -54,6 +54,20 @@ namespace FileConverter
         private bool showHelp;
         private volatile System.Windows.Forms.NotifyIcon trayIcon;
 
+        // ── new CLI flags ──────────────────────────────────────────────────
+        /// <summary>--output-dir: write all output files into this directory.</summary>
+        private string outputDirectory;
+        /// <summary>--wait: block process until all conversions finish; exit code = 0/1.</summary>
+        private bool waitMode;
+        /// <summary>--progress: write machine-readable progress key=value to stdout.</summary>
+        private bool progressMode;
+        /// <summary>--list-presets: print available presets then exit.</summary>
+        private bool listPresetsMode;
+        /// <summary>--probe: print media info for the given input files then exit.</summary>
+        private bool probeMode;
+        /// <summary>--output-format: "text" (default) or "json" for --list-presets/--probe.</summary>
+        private string outputFormat = "text";
+
         [DllImport("kernel32.dll")]
         static extern bool AttachConsole(uint dwProcessId);
 
@@ -143,6 +157,28 @@ namespace FileConverter
 
             if (this.needToRunConversionThread)
             {
+                // ── --wait mode: headless blocking, no window or tray ─────────────────
+                // Blocks the main thread until all conversions finish, then exits
+                // with code 0 (all succeeded) or 1 (any failure).
+                if (this.waitMode)
+                {
+                    var done = new System.Threading.ManualResetEventSlim(false);
+                    bool allOk = true;
+
+                    IConversionService waitConvService = Ioc.Default.GetRequiredService<IConversionService>();
+                    waitConvService.ConversionJobsTerminated += (sender, e) =>
+                    {
+                        allOk = e.AllConversionsSucceed;
+                        done.Set();
+                    };
+                    waitConvService.ConvertFilesAsync();
+
+                    // Block without pumping WPF messages — this is a CLI-style invocation.
+                    done.Wait();
+                    Environment.Exit(allOk ? 0 : 1);
+                    return;
+                }
+
                 ISettingsService traySettingsService = Ioc.Default.GetRequiredService<ISettingsService>();
                 bool minimizeToTray = traySettingsService.Settings?.MinimizeToTray == true;
 
@@ -484,6 +520,48 @@ namespace FileConverter
                             this.silent = true;
                             break;
 
+                        case "output-dir":
+                            if (index >= args.Length - 1)
+                            {
+                                Debug.LogError(errorCode: 0x06, "--output-dir requires a directory path argument.");
+                                Application.AskForShutdown();
+                                return;
+                            }
+
+                            this.outputDirectory = args[index + 1];
+                            index++;
+                            break;
+
+                        case "wait":
+                            // Block the process until all conversions finish; exit code = 0 (success) or 1 (any failure).
+                            this.waitMode = true;
+                            break;
+
+                        case "progress":
+                            // Write machine-readable key=value progress lines to stdout.
+                            this.progressMode = true;
+                            break;
+
+                        case "list-presets":
+                            // Print all available presets to stdout then exit.
+                            this.listPresetsMode = true;
+                            break;
+
+                        case "probe":
+                            // Print media file info to stdout then exit.
+                            this.probeMode = true;
+                            break;
+
+                        case "output-format":
+                            // "text" (default) or "json" — affects --list-presets and --probe output.
+                            if (index < args.Length - 1)
+                            {
+                                this.outputFormat = args[index + 1].ToLowerInvariant();
+                                index++;
+                            }
+
+                            break;
+
                         default:
                             Debug.LogError($"Unknown application argument: '--{parameterTitle}'.");
                             return;
@@ -495,10 +573,10 @@ namespace FileConverter
                 }
             }
 
-            this.RunConversions(filePaths, conversionPresetName);
+            this.RunConversions(filePaths, conversionPresetName, this.outputDirectory);
         }
 
-        private void RunConversions(List<string> filePaths, string conversionPresetName)
+        private void RunConversions(List<string> filePaths, string conversionPresetName, string outputDirectory = null)
         {
             ISettingsService settingsService = Ioc.Default.GetRequiredService<ISettingsService>();
             if (settingsService.Settings == null)
@@ -506,6 +584,91 @@ namespace FileConverter
                 Debug.LogError(errorCode: 0x04, "Can't load File Converter settings. The application will now shutdown, if you want to fix the problem yourself please edit or delete the file: C:\\Users\\UserName\\AppData\\Local\\FileConverter\\Settings.user.xml.");
                 Application.AskForShutdown();
                 return;
+            }
+
+            // ── --list-presets: print available presets to stdout then exit ────────────
+            if (this.listPresetsMode)
+            {
+                var presets = settingsService.Settings?.ConversionPresets;
+                if (presets == null || presets.Count == 0)
+                {
+                    Console.Error.WriteLine("No presets found.");
+                    Environment.Exit(1);
+                    return;
+                }
+
+                if (this.outputFormat == "json")
+                {
+                    Console.Write("[");
+                    bool first = true;
+                    foreach (var p in presets)
+                    {
+                        if (!first) { Console.Write(","); }
+
+                        first = false;
+                        string inputs = string.Join(",", p.InputTypes ?? new string[0]);
+                        Console.Write(
+                            $"{{\"name\":{EscapeJson(p.FullName)}," +
+                            $"\"outputType\":\"{p.OutputType}\"," +
+                            $"\"inputTypes\":\"{inputs}\"}}");
+                    }
+
+                    Console.WriteLine("]");
+                }
+                else
+                {
+                    foreach (var p in presets)
+                    {
+                        string inputs = string.Join(",", p.InputTypes ?? new string[0]);
+                        Console.WriteLine($"{p.FullName,-55} -> {p.OutputType,-8}  [{inputs}]");
+                    }
+                }
+
+                Console.Out.Flush();
+                Environment.Exit(0);
+                return;
+            }
+
+            // ── --probe: print media info for each input file then exit ──────────────
+            if (this.probeMode)
+            {
+                foreach (string file in filePaths)
+                {
+                    var r = Diagnostics.MediaProber.Probe(file);
+                    if (this.outputFormat == "json")
+                    {
+                        Console.WriteLine(
+                            $"{{\"file\":{EscapeJson(file)}," +
+                            $"\"duration_sec\":{r.DurationSec.ToString("F3", System.Globalization.CultureInfo.InvariantCulture)}," +
+                            $"\"width\":{r.Width}," +
+                            $"\"height\":{r.Height}," +
+                            $"\"video_codec\":{EscapeJson(r.VideoCodec)}," +
+                            $"\"audio_codec\":{EscapeJson(r.AudioCodec)}," +
+                            $"\"bitrate_kbps\":{r.BitrateKbps}," +
+                            $"\"size_bytes\":{r.SizeBytes}}}");
+                    }
+                    else
+                    {
+                        var dur = TimeSpan.FromSeconds(r.DurationSec);
+                        Console.WriteLine($"File       : {file}");
+                        Console.WriteLine($"Duration   : {dur.Hours:D2}:{dur.Minutes:D2}:{dur.Seconds:D2}");
+                        Console.WriteLine($"Video      : {r.VideoCodec}  {r.Width}x{r.Height}");
+                        Console.WriteLine($"Audio      : {r.AudioCodec}");
+                        Console.WriteLine($"Bitrate    : {r.BitrateKbps} kb/s");
+                        Console.WriteLine($"Size       : {r.SizeBytes / 1024.0 / 1024.0:F2} MB");
+                        Console.WriteLine();
+                    }
+                }
+
+                Console.Out.Flush();
+                Environment.Exit(0);
+                return;
+            }
+
+            // ── --progress: enable ProgressWriter ────────────────────────────────────
+            if (this.progressMode)
+            {
+                Diagnostics.ProgressWriter.IsEnabled = true;
             }
 
             Debug.Assert(Debug.FirstErrorCode == 0, "An error happened during the initialization.");
@@ -534,6 +697,22 @@ namespace FileConverter
             {
                 IConversionService conversionService = Ioc.Default.GetRequiredService<IConversionService>();
 
+                // Create output directory if --output-dir was specified.
+                if (!string.IsNullOrEmpty(outputDirectory))
+                {
+                    try
+                    {
+                        System.IO.Directory.CreateDirectory(outputDirectory);
+                        Debug.Log(Debug.CatConversion, $"--output-dir: using directory '{outputDirectory}'");
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogError($"--output-dir: failed to create directory '{outputDirectory}': {ex.Message}");
+                        Application.AskForShutdown();
+                        return;
+                    }
+                }
+
                 // Create conversion jobs.
                 Debug.Log($"Create jobs for conversion preset: '{conversionPreset.FullName}'");
                 try
@@ -542,6 +721,13 @@ namespace FileConverter
                     {
                         string inputFilePath = filePaths[index];
                         ConversionJob conversionJob = ConversionJobFactory.Create(conversionPreset, inputFilePath);
+
+                        // Apply --output-dir override so PrepareConversion places
+                        // the output file in the requested directory.
+                        if (!string.IsNullOrEmpty(outputDirectory))
+                        {
+                            conversionJob.OutputDirectoryOverride = outputDirectory;
+                        }
 
                         conversionService.RegisterConversionJob(conversionJob);
                     }
@@ -555,6 +741,13 @@ namespace FileConverter
                 this.needToRunConversionThread = true;
             }
         }
+
+        private static string EscapeJson(string s) =>
+            "\"" + (s ?? string.Empty)
+                .Replace("\\", "\\\\")
+                .Replace("\"", "\\\"")
+                .Replace("\n", "\\n")
+                .Replace("\r", "\\r") + "\"";
 
         private void UpgradeService_NewVersionAvailable(object sender, UpgradeVersionDescription e)
         {

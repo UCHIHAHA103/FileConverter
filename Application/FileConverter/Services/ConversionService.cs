@@ -103,7 +103,10 @@ namespace FileConverter.Services
             {
                 for (int index = 0; index < this.ConversionJobs.Count; index++)
                 {
-                    this.ConversionJobs[index].PrepareConversion();
+                    // Pass the job's OutputDirectoryOverride (set by --output-dir CLI flag).
+                    // Null = use preset template (default, unchanged behavior).
+                    this.ConversionJobs[index].PrepareConversion(
+                        this.ConversionJobs[index].OutputDirectoryOverride);
                 }
             }
 

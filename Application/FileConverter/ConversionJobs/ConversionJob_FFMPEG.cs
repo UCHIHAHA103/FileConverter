@@ -583,6 +583,31 @@ namespace FileConverter.ConversionJobs
                                 stderrLog.AppendLine(result);
 
                                 Diagnostics.Debug.Log(Diagnostics.Debug.CatFFmpeg, $"ffmpeg: {result}");
+
+                                // Feed live stats to ProgressWriter (--progress stdout protocol).
+                                if (Diagnostics.ProgressWriter.IsEnabled && result != null)
+                                {
+                                    // ffmpeg stats line: "frame=181 fps=32 q=-0.0 Lsize=3272kB time=00:00:06.00 bitrate=4466kbits/s speed=6.31x"
+                                    var timeM = System.Text.RegularExpressions.Regex.Match(
+                                        result, @"time=(\d+):(\d+):([\d.]+)");
+                                    if (timeM.Success)
+                                    {
+                                        double outTimeSec = int.Parse(timeM.Groups[1].Value) * 3600
+                                                          + int.Parse(timeM.Groups[2].Value) * 60
+                                                          + double.Parse(timeM.Groups[3].Value,
+                                                              System.Globalization.CultureInfo.InvariantCulture);
+
+                                        long sizeBytes = 0;
+                                        var sizeM = System.Text.RegularExpressions.Regex.Match(result, @"Lsize=\s*(\d+)kB");
+                                        if (sizeM.Success) { sizeBytes = long.Parse(sizeM.Groups[1].Value) * 1024; }
+
+                                        string speed = string.Empty;
+                                        var speedM = System.Text.RegularExpressions.Regex.Match(result, @"speed=([\d.e+]+x)");
+                                        if (speedM.Success) { speed = speedM.Groups[1].Value; }
+
+                                        Diagnostics.ProgressWriter.WriteProgress(outTimeSec, speed, sizeBytes);
+                                    }
+                                }
                             }
                         }
 

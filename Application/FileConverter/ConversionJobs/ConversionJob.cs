@@ -113,6 +113,13 @@ namespace FileConverter.ConversionJobs
             }
         }
 
+        /// <summary>
+        /// When set via the CLI --output-dir flag, overrides the preset's
+        /// OutputFileNameTemplate and places every output file in this directory.
+        /// Null/empty = use the preset template as before (default behavior).
+        /// </summary>
+        public string OutputDirectoryOverride { get; set; }
+
         public ConversionState State
         {
             get => this.state;
@@ -239,7 +246,7 @@ namespace FileConverter.ConversionJobs
             return (conversionFlags & ConversionFlags.CdDriveExtraction) == 0;
         }
 
-        public void PrepareConversion(params string[] outputFilePaths)
+        public void PrepareConversion(string outputDirectoryOverride = null, params string[] outputFilePaths)
         {
             if (this.ConversionPreset == null)
             {
@@ -249,7 +256,7 @@ namespace FileConverter.ConversionJobs
             this.InputFilePath = this.initialInputPath;
 
             Debug.Log(Debug.CatConversion,
-                $"PrepareConversion: preset='{this.ConversionPreset.FullName}' outputType={this.ConversionPreset.OutputType} input='{this.InputFilePath}' template='{this.ConversionPreset.OutputFileNameTemplate}' customCmd={this.ConversionPreset.GetSettingsValue<bool>(ConversionPreset.ConversionSettingKeys.EnableFFMPEGCustomCommand)}");
+                $"PrepareConversion: preset='{this.ConversionPreset.FullName}' outputType={this.ConversionPreset.OutputType} input='{this.InputFilePath}' template='{this.ConversionPreset.OutputFileNameTemplate}' customCmd={this.ConversionPreset.GetSettingsValue<bool>(ConversionPreset.ConversionSettingKeys.EnableFFMPEGCustomCommand)} outputDirOverride='{outputDirectoryOverride ?? this.OutputDirectoryOverride ?? "(none)"}'");
 
             string extension = System.IO.Path.GetExtension(this.initialInputPath);
             extension = extension.Substring(1, extension.Length - 1);
@@ -306,7 +313,19 @@ namespace FileConverter.ConversionJobs
                     continue;
                 }
 
-                string path = this.ConversionPreset.GenerateOutputFilePath(this.initialInputPath, index + 1, this.OutputFilePaths.Length);
+                string path;
+                if (!string.IsNullOrEmpty(outputDirectoryOverride ?? this.OutputDirectoryOverride))
+                {
+                    // --output-dir override: write output into the specified directory,
+                    // keeping only the input file name (no source directory tree).
+                    string dir = outputDirectoryOverride ?? this.OutputDirectoryOverride;
+                    path = PathHelpers.GenerateFilePathInDirectory(
+                        this.initialInputPath, this.ConversionPreset.OutputType, dir);
+                }
+                else
+                {
+                    path = this.ConversionPreset.GenerateOutputFilePath(this.initialInputPath, index + 1, this.OutputFilePaths.Length);
+                }
 
                 if (!PathHelpers.IsPathValid(path))
                 {
@@ -398,6 +417,12 @@ namespace FileConverter.ConversionJobs
             Debug.Log(Debug.CatConversion,
                 $"Convert START: '{this.InputFilePath}' -> '{this.OutputFilePath}' preset='{this.ConversionPreset.FullName}'");
 
+            // Write progress header when --progress CLI flag is active.
+            Diagnostics.ProgressWriter.WriteHeader(
+                this.InputFilePath,
+                this.ConversionPreset?.FullName ?? string.Empty,
+                Diagnostics.MediaProber.GetDuration(this.InputFilePath));
+
             this.StartTime = DateTime.Now;
             this.State = ConversionState.InProgress;
 
@@ -441,6 +466,11 @@ namespace FileConverter.ConversionJobs
 
             Debug.Log(Debug.CatConversion,
                 $"Convert END: state={this.State} duration={totalDuration.TotalSeconds:F2}s output='{this.OutputFilePath}'");
+
+            // Write end marker when --progress CLI flag is active.
+            Diagnostics.ProgressWriter.WriteEnd(
+                this.State == ConversionState.Done,
+                this.OutputFilePath);
         }
 
         public virtual void Cancel()

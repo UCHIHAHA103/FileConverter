@@ -216,5 +216,27 @@ namespace FileConverter
 
             return outputPath;
         }
+
+        /// <summary>
+        /// Generates an output file path inside a caller-supplied directory.
+        /// Only the input file name (no source directory structure) is preserved.
+        /// Used when the CLI --output-dir flag overrides the preset template.
+        /// </summary>
+        public static string GenerateFilePathInDirectory(
+            string inputFilePath, OutputType outputType, string outputDirectory)
+        {
+            string outputExtension = outputType == OutputType.Alac
+                ? "m4a"
+                : outputType.ToString().ToLowerInvariant();
+
+            string fileName = System.IO.Path.GetFileNameWithoutExtension(inputFilePath);
+
+            if (!outputDirectory.EndsWith(System.IO.Path.DirectorySeparatorChar.ToString()))
+            {
+                outputDirectory += System.IO.Path.DirectorySeparatorChar;
+            }
+
+            return outputDirectory + fileName + "." + outputExtension;
+        }
     }
 }

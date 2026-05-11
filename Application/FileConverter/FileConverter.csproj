@@ -128,6 +128,8 @@
     <Compile Include="ConversionPreset\ConversionSettingsOverride.cs" />
     <Compile Include="ConversionPreset\ConversionSettings.cs" />
     <Compile Include="Diagnostics\DiagnosticsData.cs" />
+    <Compile Include="Diagnostics\MediaProber.cs" />
+    <Compile Include="Diagnostics\ProgressWriter.cs" />
     <Compile Include="Controls\EncodingMode.cs" />
     <Compile Include="ConversionPreset\IConversionSettings.cs" />
     <Compile Include="Helpers.cs" />
