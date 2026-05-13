@@ -1,5 +1,29 @@
 # Change Log
 
+## Version 2.2.10 (UCHIHAHA103 fork)
+
+> **CLI 扩展 + 单实例窗口 + 最小化到系统托盘**
+
+### New Features
+
+- **`--output-dir <path>`** — 输出文件写入任意指定目录（自动创建），不再受 `OutputFileNameTemplate` 约束，无需先输出到默认目录再移动。
+- **`--wait`** — 阻塞进程直到所有转码任务完成；exit code `0` = 全部成功，`1` = 有任意失败。适合脚本/自动化调用。
+- **`--progress`** — 实时把转码进度以 `key=value` 协议写入 stdout（镜像 ffmpeg `-progress pipe:1` 格式），包含 `out_time`、`speed`、`progress=end`、`exit_code`、`out_file` 等字段，方便 AI/脚本解析进度条。
+- **`--list-presets [--output-format json|text]`** — 枚举所有可用预设后退出；`json` 格式可被脚本直接 `ConvertFrom-Json` 消费。
+- **`--probe [--output-format json|text] <files>`** — 输出媒体文件的时长、分辨率、编码、码率、大小等信息后退出；`json` 格式适合预估转码时间和输出大小。
+- **单实例窗口**（Single-Instance）— 多次右键转换文件时，新任务追加到已有窗口的转换队列，不再弹出多个窗口。底层通过命名管道 IPC + 命名 Mutex 实现。
+- **"最小化到系统托盘"按钮** — 标题栏右上角（最小化按钮左侧）新增托盘按钮；点击后窗口隐藏、系统托盘图标出现；单击托盘图标恢复窗口，托盘消失。
+
+### Internal / Infrastructure
+
+- `MediaProber.cs` — 利用工具自带 ffprobe 解析媒体信息，供 `--probe` 和 AI skill 进度预估使用。
+- `ProgressWriter.cs` — 统一的 stdout 进度协议写入器，供 `--progress` 模式使用。
+- `SingleInstanceManager.cs` — 单实例 IPC 管理器（命名管道 + Mutex）。
+- `Debug.SilentConsoleMode` — CLI 输出模式下禁止调试日志污染 stdout（`--probe`/`--list-presets`/`--progress` 自动启用）。
+- `ConversionJob.OutputDirectoryOverride` — 支持 `--output-dir` 的 job 级输出路径覆盖。
+
+
+
 ## Version 2.2.7 (UCHIHAHA103 fork hotfix)
 
 > **修复 v2.2.3+ 安装后右键菜单丢失的根因**

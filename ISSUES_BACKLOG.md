@@ -380,6 +380,87 @@ ConversionJob_FFMPEG.cs
 3. ✅ 三层注册表清理保障（RegAsm + CleanupShellExtensionRegistry + ForceDeleteOnUninstall）
 4. ✅ 卸载时提供"清除用户数据"选项（RemoveSettingsDlg 对话框）
 
+### 6.3 🔴 右键菜单消失 — 反复安装 MSI 后 COM 注册失效（2026-05-12）
+
+> **状态**：✅ 已手动修复 + 规避方案已落地
+
+#### 现象
+
+多次安装/覆盖安装 MSI 后，资源管理器右键菜单中的"File Converter"选项完全消失。
+
+#### 根本原因
+
+MSI 的 Custom Action `RegisterShell`（调用 `FileConverter.exe --register-shell-extension <DLL路径>`）在某次安装时静默失败，导致以下注册表键全部丢失：
+
+| 键 | 作用 |
+|---|---|
+| `HKCR\CLSID\{AF9B72B5-...}\InprocServer32` | COM 类注册，指向 `FileConverterExtension.dll` |
+| `HKCR\*\shellex\ContextMenuHandlers\FileConverterExtension` | Explorer 加载 shell ext 的入口 |
+| `HKLM\...\Shell Extensions\Approved\{AF9B72B5-...}` | 防止 Windows 自动禁用该 shell ext |
+
+**静默失败的两个陷阱**：
+
+1. **单实例 Mutex 拦截**：如果 FC 进程正在运行，`--register-shell-extension` 会被单实例机制（`SingleInstanceManager.TryAcquirePrimary`）截获，直接 `ForwardArgumentsToPrimaryAndExit()` 退出，**注册逻辑根本不执行**，进程退出码 0，完全静默。
+
+2. **缺少 DLL 路径参数**：`HandleEarlyCommandLineArgs` 里的 `register-shell-extension` case 要求 `args[index+1]` 作为 DLL 路径，若仅传 `--register-shell-extension`（无第二参数），条件 `index < args.Length - 1` 不满足，跳过注册直接 `ExitEarlyProcess()`，同样静默失败。
+
+#### 诊断方法
+
+```powershell
+# 检查 CLSID 是否存在（存在 = 注册正常）
+reg query "HKCR\CLSID\{AF9B72B5-F4E4-44B0-A3D9-B55B748EFE90}"
+
+# 检查 shellex 入口
+reg query "HKCR\*\shellex\ContextMenuHandlers\FileConverterExtension"
+
+# 检查 Approved 列表（搜 FileConverter）
+reg query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Shell Extensions\Approved" | findstr /i "FileConverter"
+```
+
+任意一条返回 `ERROR: The system was unable to find the specified registry key or value.` → shell extension 未注册。
+
+#### 修复命令（需管理员权限）
+
+```powershell
+# Step 1：关掉所有 FC 进程（避免单实例 Mutex 拦截注册）
+Stop-Process -Name FileConverter -Force -ErrorAction SilentlyContinue
+Start-Sleep 2
+
+# Step 2：以管理员权限注册 shell extension（必须带 DLL 路径参数）
+Start-Process -FilePath "C:\Program Files\File Converter\FileConverter.exe" `
+    -ArgumentList "--register-shell-extension `"C:\Program Files\File Converter\FileConverterExtension.dll`"" `
+    -Verb RunAs -Wait
+
+# Step 3：验证（应出现 {AF9B72B5-...} 相关条目）
+reg query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Shell Extensions\Approved" | findstr /i "FileConverter"
+
+# Step 4：重启 Explorer 使注册生效
+Stop-Process -Name explorer -Force; Start-Sleep 2; Start-Process explorer
+```
+
+验证成功标志（FC 日志 `%LOCALAPPDATA%\FileConverter\Logs\FileConverter.log`）：
+```
+Install and register shell extension: C:\Program Files\File Converter\FileConverterExtension.dll.
+C:\Program Files\File Converter\FileConverterExtension.dll installed and registered.
+Added to Shell Extensions\Approved.
+Removed from Shell Extensions\Blocked.
+```
+
+#### 规避方案（已落地）
+
+1. **每次 MSI 安装后自动补注册**：`my-github` skill 的项目档案 `references/projects/FileConverter.md` 已加入 `post_install_cmd` 字段，AI 执行 `install-latest` 动作时必须在 MSI 安装完成后执行注册命令。
+
+2. **安装脚本中加入注册步骤**：今后所有"下载+安装"操作，在 `msiexec /i ... -Wait` 完成后追加：
+   ```powershell
+   Stop-Process -Name FileConverter -Force -ErrorAction SilentlyContinue
+   Start-Sleep 1
+   Start-Process "C:\Program Files\File Converter\FileConverter.exe" `
+       -ArgumentList "--register-shell-extension `"C:\Program Files\File Converter\FileConverterExtension.dll`"" `
+       -Verb RunAs -Wait
+   ```
+
+3. **潜在代码修复（TODO）**：`HandleEarlyCommandLineArgs` 中 `register-shell-extension` 缺少参数时应输出错误日志而非静默跳过；单实例检查应在识别到 `--register-shell-extension` 后直接 bypass Mutex，不走转发流程。
+
 ### 6.2 更新器
 
 | # | 描述 | 状态 |
