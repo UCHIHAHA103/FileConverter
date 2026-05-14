@@ -55,7 +55,7 @@ namespace FileConverter.ConversionJobs
                 // Convert input in png file to send it to ffmpeg for the gif conversion.
                 ConversionPreset intermediatePreset = new ConversionPreset("To compatible image", OutputType.Png, this.ConversionPreset.InputTypes.ToArray());
                 this.pngConversionJob = ConversionJobFactory.Create(intermediatePreset, this.InputFilePath);
-                this.pngConversionJob.PrepareConversion(this.intermediateFilePath);
+                this.pngConversionJob.PrepareConversion(null, this.intermediateFilePath);
 
                 inputFilePath = this.intermediateFilePath;
             }
@@ -66,7 +66,7 @@ namespace FileConverter.ConversionJobs
 
             // Convert png file into ico.
             this.gifConversionJob = new ConversionJob_FFMPEG(this.ConversionPreset, inputFilePath);
-            this.gifConversionJob.PrepareConversion(this.OutputFilePath);
+            this.gifConversionJob.PrepareConversion(null, this.OutputFilePath);
         }
 
         protected override void Convert()

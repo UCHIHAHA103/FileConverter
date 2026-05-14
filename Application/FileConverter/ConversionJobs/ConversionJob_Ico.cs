@@ -45,11 +45,11 @@ namespace FileConverter.ConversionJobs
             intermediatePreset.SetSettingsValue(ConversionPreset.ConversionSettingKeys.ImageClampSizePowerOf2, "False");
             intermediatePreset.SetSettingsValue(ConversionPreset.ConversionSettingKeys.ImageMaximumSize, "256");
             this.pngConversionJob = ConversionJobFactory.Create(intermediatePreset, this.InputFilePath);
-            this.pngConversionJob.PrepareConversion(this.intermediateFilePath);
+            this.pngConversionJob.PrepareConversion(null, this.intermediateFilePath);
 
             // Convert png file into ico.
             this.icoConversionJob = new ConversionJob_FFMPEG(this.ConversionPreset, this.intermediateFilePath);
-            this.icoConversionJob.PrepareConversion(this.OutputFilePath);
+            this.icoConversionJob.PrepareConversion(null, this.OutputFilePath);
         }
 
         protected override void Convert()
