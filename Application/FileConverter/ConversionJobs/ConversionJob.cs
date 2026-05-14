@@ -592,18 +592,19 @@ namespace FileConverter.ConversionJobs
         protected void ConversionFailed(string exitingMessage)
         {
             // Capture a stack trace so we know which code path triggered the failure.
-            string callerTrace = new System.Diagnostics.StackTrace(skipFrames: 1, fNeedFileInfo: false)
+            string[] frames = new System.Diagnostics.StackTrace(skipFrames: 1, fNeedFileInfo: false)
                 .ToString()
-                .Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries)
-                .Take(6)
-                .Aggregate(string.Empty, (a, b) => a + "\n    " + b.Trim());
+                .Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            int frameCount = Math.Min(6, frames.Length);
+            var sb = new System.Text.StringBuilder();
+            for (int fi = 0; fi < frameCount; fi++) { sb.Append("\n    ").Append(frames[fi].Trim()); }
 
             Debug.LogErrorSilent(Debug.CatConversion,
                 $"ConversionFailed: {exitingMessage}" +
                 $"\n  input  = '{this.InputFilePath}'" +
                 $"\n  output = '{this.OutputFilePath}'" +
                 $"\n  preset = '{this.ConversionPreset?.FullName}'" +
-                $"\n  caller = {callerTrace}");
+                $"\n  caller = {sb}");
 
             if (this.State == ConversionState.Failed)
             {
