@@ -68,15 +68,15 @@
             <!-- Done state: open file / show in folder buttons -->
             <StackPanel Grid.Column="1" Orientation="Vertical" VerticalAlignment="Center"
                         Visibility="{Binding State, ConverterParameter=|Done|Collapsed, Converter={StaticResource EnumEqualsToVisibility}}">
-                <Button Margin="2" Height="26" Padding="4,2" ToolTip="Open output file / 打开输出文件"
+                <Button Margin="2" Height="26" Padding="4,2" ToolTip="打开输出文件"
                         Command="{Binding DataContext.OpenOutputFileCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                         CommandParameter="{Binding}">
-                    <TextBlock FontSize="11" Text="📄 Open" />
+                    <TextBlock FontSize="11" Text="打开" />
                 </Button>
-                <Button Margin="2" Height="26" Padding="4,2" ToolTip="Show in folder / 在文件夹中显示"
+                <Button Margin="2" Height="26" Padding="4,2" ToolTip="在文件夹中显示"
                         Command="{Binding DataContext.OpenOutputFolderCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                         CommandParameter="{Binding}">
-                    <TextBlock FontSize="11" Text="📁 Locate" />
+                    <TextBlock FontSize="11" Text="定位" />
                 </Button>
             </StackPanel>
 

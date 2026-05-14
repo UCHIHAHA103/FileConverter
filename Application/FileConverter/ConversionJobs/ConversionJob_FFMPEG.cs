@@ -213,7 +213,7 @@ namespace FileConverter.ConversionJobs
                         // Generate palette.
                         string encoderArgs = $"-vf \"{transformArgs},palettegen\"";
                         string arguments = $"{baseArgs} -i \"{this.InputFilePath}\" {encoderArgs} \"{paletteFilePath}\"";
-                        this.ffmpegArgumentStringByPass.Add(new FFMpegPass("Indexing colors", arguments, paletteFilePath));
+                        this.ffmpegArgumentStringByPass.Add(new FFMpegPass("索引颜色", arguments, paletteFilePath));
 
                         // Create gif. -loop 0 ensures infinite looping (#746 #513 #142 #38).
                         encoderArgs = $"-i \"{paletteFilePath}\" -lavfi \"{transformArgs},paletteuse\" -loop 0";
@@ -899,7 +899,7 @@ namespace FileConverter.ConversionJobs
 
             public FFMpegPass(string arguments)
             {
-                this.Name = "Conversion";
+                this.Name = "转换";
                 this.Arguments = arguments;
                 this.FileToDelete = string.Empty;
             }

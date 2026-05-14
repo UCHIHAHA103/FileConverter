@@ -158,7 +158,7 @@
                     <Button Grid.Column="1" Margin="3" Command="{Binding ShowDiagnosticsCommand}" ToolTip="{x:Static project:Resources.DiagnosticsButtonTooltip}" Style="{StaticResource TileButton}">
                         <Button.ContextMenu>
                             <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
-                                <MenuItem Header="打开日志文件夹 / Open log folder" Command="{Binding OpenLogsFolderCommand}"/>
+                                <MenuItem Header="打开日志文件夹" Command="{Binding OpenLogsFolderCommand}"/>
                             </ContextMenu>
                         </Button.ContextMenu>
                         <Image HorizontalAlignment="Left" Height="48" Width="48" VerticalAlignment="Top" Source="/Resources/LogIcon.png" />
