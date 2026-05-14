@@ -52,12 +52,12 @@
         -->
 
         <!-- RegisterShell and PostInstallInit launch FileConverter.exe which loads
-             .NET CLR and all assemblies. With Execute="immediate" this blocks the
-             installer UI ("Validating install") until the process exits (~3-5 s).
-             Return="asyncNoWait" fires the process and returns immediately so the
-             UI stays responsive. The operations are idempotent and safe to run
-             asynchronously; any failure is handled by our post-install shell-ext
-             check or the user can re-run --register-shell-extension manually. -->
+             the .NET CLR and all assemblies. With Execute="immediate" this blocks
+             the installer UI ("Validating install") until the process exits (3-5 s).
+             Return="asyncNoWait" fires the process and returns immediately, keeping
+             the UI responsive. The operations are idempotent and safe to run
+             asynchronously; if registration fails the user can re-register from
+             the app's Help page or the troubleshooting guide. -->
         <CustomAction Id="RegisterShell"
             Execute="immediate" Return="asyncNoWait"
             Directory="INSTALLFOLDER"
