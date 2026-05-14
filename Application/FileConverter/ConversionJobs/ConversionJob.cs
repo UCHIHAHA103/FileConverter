@@ -347,6 +347,23 @@ namespace FileConverter.ConversionJobs
                     }
                 }
 
+                // Guard: if a directory with the same name as the intended output file
+                // already exists (e.g. a mis-created "花盛开动画.gif\" folder), ffmpeg
+                // will silently succeed but never write the file, resulting in the
+                // "Conversion appeared to succeed but output file was not found" error.
+                // Detect this early and fail with a clear diagnostic.
+                if (System.IO.Directory.Exists(path))
+                {
+                    Debug.LogError(
+                        $"Output path collision: a directory named '{System.IO.Path.GetFileName(path)}' " +
+                        $"already exists at '{System.IO.Path.GetDirectoryName(path)}'. " +
+                        $"Please delete or rename that directory before converting.");
+                    this.ConversionFailed(
+                        $"A folder named '{System.IO.Path.GetFileName(path)}' exists at the output location. " +
+                        $"Please delete or rename it and retry.");
+                    return;
+                }
+
                 // Create output folders that doesn't exist.
                 if (!PathHelpers.CreateFolders(path))
                 {
@@ -362,7 +379,7 @@ namespace FileConverter.ConversionJobs
                 catch (Exception exception)
                 {
                     this.ConversionFailed(Properties.Resources.ErrorFailToGenerateUniqueOutputPath);
-                    Debug.Log(exception.Message);
+                    Debug.LogException(Debug.CatConversion, "GenerateUniquePath failed", exception);
                     return;
                 }
 
@@ -384,7 +401,7 @@ namespace FileConverter.ConversionJobs
             catch (Exception exception)
             {
                 this.ConversionFailed(Properties.Resources.ErrorDuringJobInitialization);
-                Debug.Log(exception.ToString());
+                Debug.LogException(Debug.CatConversion, $"Initialize() threw for preset='{this.ConversionPreset?.FullName}' input='{this.InputFilePath}'", exception);
                 return;
             }
 
@@ -452,10 +469,19 @@ namespace FileConverter.ConversionJobs
             if (this.State == ConversionState.Done && !this.AllOutputFilesExists())
             {
                 Debug.LogWarning(Debug.CatConversion,
-                    $"Conversion reported Done but output file missing. Paths expected:");
+                    $"Conversion reported Done but output file(s) missing. Details:");
                 foreach (var p in this.OutputFilePaths ?? new string[0])
                 {
-                    Debug.LogWarning(Debug.CatConversion, $"  expected: '{p}'");
+                    bool fileExists = System.IO.File.Exists(p);
+                    bool dirExists  = System.IO.Directory.Exists(p);
+                    Debug.LogWarning(Debug.CatConversion,
+                        $"  expected: '{p}' | file={fileExists} | sameNameDir={dirExists}");
+                    if (dirExists)
+                    {
+                        Debug.LogWarning(Debug.CatConversion,
+                            $"  *** A DIRECTORY named '{System.IO.Path.GetFileName(p)}' exists at this path! " +
+                            $"This caused the output file to be silently lost. Delete that directory and retry.");
+                    }
                 }
                 this.ConversionFailed($"Conversion appeared to succeed but output file was not found: {this.OutputFilePath}");
             }
@@ -565,8 +591,19 @@ namespace FileConverter.ConversionJobs
 
         protected void ConversionFailed(string exitingMessage)
         {
+            // Capture a stack trace so we know which code path triggered the failure.
+            string callerTrace = new System.Diagnostics.StackTrace(skipFrames: 1, fNeedFileInfo: false)
+                .ToString()
+                .Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .Take(6)
+                .Aggregate(string.Empty, (a, b) => a + "\n    " + b.Trim());
+
             Debug.LogErrorSilent(Debug.CatConversion,
-                $"ConversionFailed: {exitingMessage} (input='{this.InputFilePath}' output='{this.OutputFilePath}')");
+                $"ConversionFailed: {exitingMessage}" +
+                $"\n  input  = '{this.InputFilePath}'" +
+                $"\n  output = '{this.OutputFilePath}'" +
+                $"\n  preset = '{this.ConversionPreset?.FullName}'" +
+                $"\n  caller = {callerTrace}");
 
             if (this.State == ConversionState.Failed)
             {

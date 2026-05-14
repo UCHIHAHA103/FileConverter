@@ -51,13 +51,20 @@
           plain "FileConverter.exe" causes Error 1721 (exe not found).
         -->
 
+        <!-- RegisterShell and PostInstallInit launch FileConverter.exe which loads
+             .NET CLR and all assemblies. With Execute="immediate" this blocks the
+             installer UI ("Validating install") until the process exits (~3-5 s).
+             Return="asyncNoWait" fires the process and returns immediately so the
+             UI stays responsive. The operations are idempotent and safe to run
+             asynchronously; any failure is handled by our post-install shell-ext
+             check or the user can re-run --register-shell-extension manually. -->
         <CustomAction Id="RegisterShell"
-            Execute="immediate" Return="ignore"
+            Execute="immediate" Return="asyncNoWait"
             Directory="INSTALLFOLDER"
             ExeCommand="&quot;[INSTALLFOLDER]FileConverter.exe&quot; --register-shell-extension &quot;[INSTALLFOLDER]FileConverterExtension.dll&quot;" />
 
         <CustomAction Id="PostInstallInit"
-            Execute="immediate" Return="ignore"
+            Execute="immediate" Return="asyncNoWait"
             Directory="INSTALLFOLDER"
             ExeCommand="&quot;[INSTALLFOLDER]FileConverter.exe&quot; --post-install-init" />
 
