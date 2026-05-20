@@ -214,7 +214,70 @@ namespace FileConverter
 
             outputPath += "." + outputExtension;
 
+            // ── Windows path-segment sanitization ─────────────────────────
+            // Windows file system silently strips trailing dots and spaces from
+            // directory names (legacy DOS/FAT compatibility). This breaks any
+            // template that uses (f), (d0), (d:format), etc. as a *directory*
+            // segment when the source value happens to end with '.' or ' '.
+            //
+            // For example, the built-in sequence preset template "(p)(f)\(f)_%06d"
+            // expanded with an input filename ending in "..." would create a
+            // directory whose actual on-disk name has the trailing dots stripped,
+            // causing ffmpeg to fail with "Could not open file ... I/O error"
+            // because the path it was given does not match what was created.
+            //
+            // We trim only INTERMEDIATE directory segments (everything between
+            // backslashes). The final segment (file name) is left untouched so
+            // the ".extension" we just appended is preserved and any user-chosen
+            // file naming is respected.
+            outputPath = SanitizeIntermediateDirSegments(outputPath);
+
             return outputPath;
+        }
+
+        /// <summary>
+        /// Trim trailing dots and spaces from each intermediate directory segment
+        /// of a Windows path, leaving the drive prefix and the final file-name
+        /// segment unchanged. This aligns the in-memory path with the name the
+        /// Windows file system will actually create (see Microsoft docs:
+        /// "Do not end a file or directory name with a space or a period").
+        /// </summary>
+        public static string SanitizeIntermediateDirSegments(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+            {
+                return path;
+            }
+
+            // Split into segments. Path can start with "X:\" or "\\server\share\".
+            int lastSep = path.LastIndexOf('\\');
+            if (lastSep < 0)
+            {
+                return path;
+            }
+
+            string dirPart  = path.Substring(0, lastSep);   // everything up to and excluding the last '\'
+            string filePart = path.Substring(lastSep);      // includes the leading '\' + filename
+
+            string[] segments = dirPart.Split('\\');
+            for (int i = 0; i < segments.Length; i++)
+            {
+                // Skip the drive letter ("X:") and empty segments produced by
+                // UNC prefixes ("\\server\share\..." -> ["", "", "server", "share", ...]).
+                if (i == 0 && segments[i].Length == 2 && segments[i][1] == ':')
+                {
+                    continue;
+                }
+
+                if (string.IsNullOrEmpty(segments[i]))
+                {
+                    continue;
+                }
+
+                segments[i] = segments[i].TrimEnd('.', ' ');
+            }
+
+            return string.Join("\\", segments) + filePart;
         }
 
         /// <summary>
