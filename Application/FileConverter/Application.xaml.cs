@@ -21,6 +21,7 @@ namespace FileConverter
     using System.IO;
     using System.Runtime.InteropServices;
     using System.Security.Principal;
+    using System.Text;
     using System.Threading;
     using System.Windows;
 
@@ -390,21 +391,30 @@ namespace FileConverter
                     switch (parameterTitle)
                     {
                         case "post-install-init":
-                            try
                             {
-                                ISettingsService settingsService = Ioc.Default.GetRequiredService<ISettingsService>();
-                                if (!settingsService.PostInstallationInitialization())
+                                var swPii = System.Diagnostics.Stopwatch.StartNew();
+                                InstallLog.Begin("PostInstallInit");
+                                bool piiOk = true;
+                                try
                                 {
-                                    Diagnostics.Debug.Log("PostInstallInit returned false (non-fatal, install continues).");
+                                    ISettingsService settingsService = Ioc.Default.GetRequiredService<ISettingsService>();
+                                    if (!settingsService.PostInstallationInitialization())
+                                    {
+                                        piiOk = false;
+                                        Diagnostics.Debug.Log("PostInstallInit returned false (non-fatal, install continues).");
+                                    }
                                 }
-                            }
-                            catch (System.Exception ex)
-                            {
-                                Diagnostics.Debug.Log($"PostInstallInit error (non-fatal): {ex.Message}");
-                            }
+                                catch (System.Exception ex)
+                                {
+                                    piiOk = false;
+                                    InstallLog.Write($"  PostInstallInit exception: {ex.GetType().Name}: {ex.Message}");
+                                    Diagnostics.Debug.Log($"PostInstallInit error (non-fatal): {ex.Message}");
+                                }
 
-                            Application.AskForShutdown();
-                            return;
+                                InstallLog.End("PostInstallInit", piiOk, swPii);
+                                Application.AskForShutdown();
+                                return;
+                            }
 
                         case "remove-user-data":
                             // Called by the MSI uninstaller to delete user settings.
@@ -912,6 +922,49 @@ namespace FileConverter
         }
 
         /// <summary>
+        /// Lightweight install-time logger.
+        ///
+        /// Writes a timestamped line to %TEMP%\FC_install.log so that install
+        /// issues (hangs, failures in Custom Actions) can be diagnosed even
+        /// when the regular %LocalAppData% log is inaccessible (e.g. when
+        /// running as SYSTEM during MSI deferred CAs).
+        ///
+        /// The file is intentionally NOT rotated or cleaned here — it is tiny
+        /// and left for the user/support to inspect after installation.
+        /// </summary>
+        private static class InstallLog
+        {
+            private static readonly string LogPath =
+                Path.Combine(Path.GetTempPath(), "FC_install.log");
+
+            private static readonly object Lock = new object();
+
+            internal static void Write(string message)
+            {
+                try
+                {
+                    string line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} [PID:{System.Diagnostics.Process.GetCurrentProcess().Id}] {message}";
+                    lock (Lock)
+                    {
+                        File.AppendAllText(LogPath, line + Environment.NewLine, Encoding.UTF8);
+                    }
+                }
+                catch { /* never let logging crash the installer action */ }
+            }
+
+            internal static void Begin(string action, string detail = "")
+            {
+                InstallLog.Write($"[BEGIN] {action}" + (string.IsNullOrEmpty(detail) ? string.Empty : $" | {detail}"));
+            }
+
+            internal static void End(string action, bool success, System.Diagnostics.Stopwatch sw, string detail = "")
+            {
+                string status = success ? "OK" : "FAILED";
+                InstallLog.Write($"[END  ] {action} | {status} | elapsed {sw.ElapsedMilliseconds} ms" + (string.IsNullOrEmpty(detail) ? string.Empty : $" | {detail}"));
+            }
+        }
+
+        /// <summary>
         /// Parse command-line args early (before WPF theme/DI init) and handle
         /// non-UI commands that should run without full application setup.
         /// Returns true if the app should exit immediately.
@@ -932,46 +985,70 @@ namespace FileConverter
                 switch (parameterTitle)
                 {
                     case "register-shell-extension":
-                        if (index < args.Length - 1)
                         {
-                            string shellExtensionPath = args[index + 1];
-                            if (!Helpers.RegisterShellExtension(shellExtensionPath))
-                            {
-                                Debug.LogError(errorCode: 0x0C, $"Failed to register shell extension {shellExtensionPath}.");
-                            }
-                        }
+                            string shellExtensionPath = index < args.Length - 1 ? args[index + 1] : string.Empty;
+                            var sw = System.Diagnostics.Stopwatch.StartNew();
+                            InstallLog.Begin("RegisterShell", shellExtensionPath);
 
-                        ExitEarlyProcess();
-                        return true;
+                            bool ok = false;
+                            if (!string.IsNullOrEmpty(shellExtensionPath))
+                            {
+                                ok = Helpers.RegisterShellExtension(shellExtensionPath);
+                                if (!ok)
+                                {
+                                    Debug.LogError(errorCode: 0x0C, $"Failed to register shell extension {shellExtensionPath}.");
+                                }
+                            }
+
+                            InstallLog.End("RegisterShell", ok, sw);
+                            ExitEarlyProcess();
+                            return true;
+                        }
 
                     case "unregister-shell-extension":
-                        if (index < args.Length - 1)
                         {
-                            string shellExtensionPath = args[index + 1];
-                            if (!Helpers.UnregisterExtension(shellExtensionPath))
-                            {
-                                Debug.LogError(errorCode: 0x0E, $"Failed to unregister shell extension {shellExtensionPath}.");
-                            }
-                        }
+                            string shellExtensionPath = index < args.Length - 1 ? args[index + 1] : string.Empty;
+                            var sw = System.Diagnostics.Stopwatch.StartNew();
+                            InstallLog.Begin("UnregisterShell", shellExtensionPath);
 
-                        ExitEarlyProcess();
-                        return true;
+                            bool ok = false;
+                            if (!string.IsNullOrEmpty(shellExtensionPath))
+                            {
+                                ok = Helpers.UnregisterExtension(shellExtensionPath);
+                                if (!ok)
+                                {
+                                    Debug.LogError(errorCode: 0x0E, $"Failed to unregister shell extension {shellExtensionPath}.");
+                                }
+                            }
+
+                            InstallLog.End("UnregisterShell", ok, sw);
+                            ExitEarlyProcess();
+                            return true;
+                        }
 
                     case "remove-user-data":
-                        try
                         {
-                            string userDataPath = FileConverterExtension.PathHelpers.GetUserDataFolderPath;
-                            if (System.IO.Directory.Exists(userDataPath))
+                            var sw = System.Diagnostics.Stopwatch.StartNew();
+                            InstallLog.Begin("RemoveUserData");
+                            bool ok = true;
+                            try
                             {
-                                System.IO.Directory.Delete(userDataPath, true);
+                                string userDataPath = FileConverterExtension.PathHelpers.GetUserDataFolderPath;
+                                if (System.IO.Directory.Exists(userDataPath))
+                                {
+                                    System.IO.Directory.Delete(userDataPath, true);
+                                }
                             }
-                        }
-                        catch
-                        {
-                        }
+                            catch (Exception ex)
+                            {
+                                ok = false;
+                                InstallLog.Write($"  RemoveUserData exception: {ex.Message}");
+                            }
 
-                        ExitEarlyProcess();
-                        return true;
+                            InstallLog.End("RemoveUserData", ok, sw);
+                            ExitEarlyProcess();
+                            return true;
+                        }
 
                     case "version":
                         Console.WriteLine(ApplicationVersion.ToString());
