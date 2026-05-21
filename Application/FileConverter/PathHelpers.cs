@@ -244,7 +244,7 @@ namespace FileConverter
         /// </summary>
         public static string EscapePercentForFfmpeg(string path)
         {
-            if (string.IsNullOrEmpty(path) || !path.Contains('%'))
+            if (string.IsNullOrEmpty(path) || !path.Contains("%"))
             {
                 return path;
             }
