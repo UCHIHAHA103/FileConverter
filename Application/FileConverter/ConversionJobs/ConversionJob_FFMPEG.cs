@@ -699,14 +699,26 @@ namespace FileConverter.ConversionJobs
                 return;
             }
 
+            if (!settingsService.Settings.AutoRetrySoftwareEncodingOnGpuFailure)
+            {
+                return;
+            }
+
             Diagnostics.Debug.Log($"Hardware encoding ({hwAccel}) failed. Retrying with software encoder (libx264)...");
 
+            this.UserState = Properties.Resources.GpuEncodingFailedRetryingSoftwareEncode;
             this.ResetStateForRetry();
 
             this.ffmpegArgumentStringByPass.Clear();
             this.FillFFMpegArgumentsListSoftwareFallback();
 
             this.RunAllPasses(stderrLog, "[SW Fallback] ");
+
+            // If retry succeeded, annotate with a warning status message so user knows fallback was used.
+            if (this.State == ConversionState.Done)
+            {
+                this.SetStatusMessage(Properties.Resources.GpuEncodingFailedAndRetriedWithSoftwareEncoding);
+            }
         }
 
         /// <summary>

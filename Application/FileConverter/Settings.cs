@@ -23,6 +23,7 @@ namespace FileConverter
         private int maximumNumberOfSimultaneousConversions;
         private bool copyFilesInClipboardAfterConversion = false;
         private Helpers.HardwareAccelerationMode hardwareAccelerationMode = Helpers.HardwareAccelerationMode.Off;
+        private bool autoRetrySoftwareEncodingOnGpuFailure = true;
         private bool minimizeToTray = false;
         private bool notifyOnComplete = true;
         private bool playSoundOnComplete = true;
@@ -253,6 +254,21 @@ namespace FileConverter
             set
             {
                 this.hardwareAccelerationMode = value;
+                this.OnPropertyChanged();
+            }
+        }
+
+        [XmlElement]
+        public bool AutoRetrySoftwareEncodingOnGpuFailure
+        {
+            get
+            {
+                return this.autoRetrySoftwareEncodingOnGpuFailure;
+            }
+
+            set
+            {
+                this.autoRetrySoftwareEncodingOnGpuFailure = value;
                 this.OnPropertyChanged();
             }
         }

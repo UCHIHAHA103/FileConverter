@@ -616,4 +616,25 @@
   <data name="HardwareAccelerationModeVulkanName" xml:space="preserve">
     <value>Vulkan</value>
   </data>
+  <data name="AutoRetrySoftwareEncodingOnGpuFailureLabel" xml:space="preserve">
+    <value>GPU 编码失败时自动重试软件编码</value>
+  </data>
+  <data name="GpuEncodingFailedRetryingSoftwareEncode" xml:space="preserve">
+    <value>GPU 编码失败，正在重试软件编码</value>
+  </data>
+  <data name="ConversionStateDoneSoftwareFallback" xml:space="preserve">
+    <value>完成（软件回退）</value>
+  </data>
+  <data name="GpuEncodingFailedAndRetriedWithSoftwareEncoding" xml:space="preserve">
+    <value>GPU 编码失败，已自动切换软件编码重试。</value>
+  </data>
+  <data name="ErrorGpuEncodingFailedAfterFallback" xml:space="preserve">
+    <value>GPU 编码失败，软件回退也失败。请检查硬件加速设置或 GPU 驱动后重试。</value>
+  </data>
+  <data name="ErrorGpuEncodingFailed" xml:space="preserve">
+    <value>GPU 编码失败。请检查硬件加速设置或 GPU 驱动后重试。</value>
+  </data>
+  <data name="ErrorConversionFailed" xml:space="preserve">
+    <value>转换失败。</value>
+  </data>
 </root>

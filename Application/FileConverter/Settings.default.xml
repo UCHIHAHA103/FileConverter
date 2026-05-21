@@ -2427,6 +2427,7 @@
     </ConversionPreset>
     <CheckUpgradeAtStartup>true</CheckUpgradeAtStartup>
     <CopyFilesInClipboardAfterConversion>false</CopyFilesInClipboardAfterConversion>
+    <AutoRetrySoftwareEncodingOnGpuFailure>true</AutoRetrySoftwareEncodingOnGpuFailure>
     <MinimizeToTray>false</MinimizeToTray>
     <NotifyOnComplete>true</NotifyOnComplete>
     <PlaySoundOnComplete>true</PlaySoundOnComplete>
