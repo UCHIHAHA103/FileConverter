@@ -259,6 +259,7 @@ namespace FileConverter
                 }
 
                 segments[i] = segments[i].TrimEnd('.', ' ');
+                segments[i] = segments[i].Replace("%", string.Empty);
             }
 
             return string.Join("\\", segments) + filePart;
