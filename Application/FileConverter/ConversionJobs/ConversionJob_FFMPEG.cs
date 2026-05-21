@@ -15,8 +15,10 @@ namespace FileConverter.ConversionJobs
 
     public partial class ConversionJob_FFMPEG : ConversionJob
     {
-        private readonly Regex durationRegex = new Regex(@"Duration:\s*([0-9][0-9]):([0-9][0-9]):([0-9][0-9])\.([0-9][0-9]),.*bitrate:\s*([0-9]+) kb\/s");
-        private readonly Regex progressRegex = new Regex(@"size=\s*([0-9]+).*time=([0-9][0-9]):([0-9][0-9]):([0-9][0-9]).([0-9][0-9])\s+bitrate=\s*([0-9]+.[0-9])");
+        // Duration line: "  Duration: HH:MM:SS.mm, start: ..." — bitrate field is optional (some streams omit it)
+        private readonly Regex durationRegex = new Regex(@"Duration:\s*(\d{2}):(\d{2}):(\d{2})\.(\d{2})");
+        // Progress line: "frame=N fps=N ... time=HH:MM:SS.mm ..." — matches both old and new FFmpeg output formats
+        private readonly Regex progressRegex = new Regex(@"time=(-?)(\d{2}):(\d{2}):(\d{2})\.(\d{2})");
 
         private TimeSpan fileDuration;
         private TimeSpan actualConvertedDuration;
@@ -834,34 +836,38 @@ namespace FileConverter.ConversionJobs
 
         private void ParseFFMPEGOutput(string input)
         {
+            // durationRegex groups: 1=HH 2=MM 3=SS 4=cs (centiseconds)
             Match match = this.durationRegex.Match(input);
-            if (match.Success && match.Groups.Count >= 6)
+            if (match.Success && match.Groups.Count >= 5)
             {
                 int hours = int.Parse(match.Groups[1].Value);
                 int minutes = int.Parse(match.Groups[2].Value);
                 int seconds = int.Parse(match.Groups[3].Value);
                 int milliseconds = int.Parse(match.Groups[4].Value) * 10;
-                float bitrate = float.Parse(match.Groups[5].Value);
                 this.fileDuration = new TimeSpan(0, hours, minutes, seconds, milliseconds);
                 return;
             }
 
             if (this.fileDuration.Ticks > 0)
             {
+                // progressRegex groups: 1=sign 2=HH 3=MM 4=SS 5=cs
                 match = this.progressRegex.Match(input);
-                if (match.Success && match.Groups.Count >= 7)
+                if (match.Success && match.Groups.Count >= 6)
                 {
-                    int size = int.Parse(match.Groups[1].Value);
+                    // Ignore negative timestamps (FFmpeg pre-processing phase, e.g. time=-00:00:01.00)
+                    if (match.Groups[1].Value == "-")
+                    {
+                        return;
+                    }
+
                     int hours = int.Parse(match.Groups[2].Value);
                     int minutes = int.Parse(match.Groups[3].Value);
                     int seconds = int.Parse(match.Groups[4].Value);
                     int milliseconds = int.Parse(match.Groups[5].Value) * 10;
-                    float bitrate = 0f;
-                    float.TryParse(match.Groups[6].Value, out bitrate);
 
                     this.actualConvertedDuration = new TimeSpan(0, hours, minutes, seconds, milliseconds);
 
-                    this.Progress = this.actualConvertedDuration.Ticks / (float)this.fileDuration.Ticks;
+                    this.Progress = Math.Min(1f, this.actualConvertedDuration.Ticks / (float)this.fileDuration.Ticks);
                     return;
                 }
             }
