@@ -113,6 +113,21 @@ jobs:
           # Export as env var for subsequent steps (WiX preprocessor reads env.PRODUCT_VERSION)
           "PRODUCT_VERSION=$version" >> $env:GITHUB_ENV
 
+       - name: Stamp AssemblyFileVersion with CI build number
+         shell: pwsh
+         run: |
+           # Update AssemblyVersion and AssemblyFileVersion in AssemblyInfo.cs
+           # so MSI can compare file versions and correctly replace EXE on upgrade.
+           $ver = $env:PRODUCT_VERSION  # e.g. "2.2.132"
+           $asmVer = "$ver.0"           # AssemblyVersion needs 4 parts
+           $file = "Application\FileConverter\Properties\AssemblyInfo.cs"
+           $text = Get-Content $file -Raw
+           $text = $text -replace 'AssemblyVersion\("[^"]*"\)', "AssemblyVersion(\"$asmVer\")"
+           $text = $text -replace 'AssemblyFileVersion\("[^"]*"\)', "AssemblyFileVersion(\"$asmVer\")"
+           Set-Content $file $text -NoNewline
+           Write-Host "Stamped $file with version $asmVer"
+
+
       - name: Build Solution (Release|x64)
         shell: pwsh
         env:
