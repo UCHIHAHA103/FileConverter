@@ -220,12 +220,6 @@ namespace FileConverter
             // template that uses (f), (d0), (d:format), etc. as a *directory*
             // segment when the source value happens to end with '.' or ' '.
             //
-            // For example, the built-in sequence preset template "(p)(f)\(f)_%06d"
-            // expanded with an input filename ending in "..." would create a
-            // directory whose actual on-disk name has the trailing dots stripped,
-            // causing ffmpeg to fail with "Could not open file ... I/O error"
-            // because the path it was given does not match what was created.
-            //
             // We trim only INTERMEDIATE directory segments (everything between
             // backslashes). The final segment (file name) is left untouched so
             // the ".extension" we just appended is preserved and any user-chosen
@@ -233,6 +227,35 @@ namespace FileConverter
             outputPath = SanitizeIntermediateDirSegments(outputPath);
 
             return outputPath;
+        }
+
+        // Regex that matches an intentional ffmpeg sequence pattern like %06d / %04d / %d.
+        private static readonly Regex ffmpegSequencePatternRegex =
+            new Regex(@"%0?\d*d", RegexOptions.Compiled);
+
+        /// <summary>
+        /// Escape literal '%' characters in a file path to '%%' so that ffmpeg's
+        /// image2 muxer does not misinterpret them as printf format specifiers.
+        /// Intentional ffmpeg sequence patterns (%06d, %04d, %d) are preserved as-is.
+        ///
+        /// Call this only for sequence output paths (where the path already contains
+        /// a %NNd pattern). For non-sequence outputs the path is passed to ffmpeg
+        /// without modification and '%%' would corrupt the actual filename.
+        /// </summary>
+        public static string EscapePercentForFfmpeg(string path)
+        {
+            if (string.IsNullOrEmpty(path) || !path.Contains('%'))
+            {
+                return path;
+            }
+
+            // Replace all '%' with a placeholder that cannot appear in a Windows
+            // path, then restore the intentional sequence patterns, then replace
+            // remaining placeholders with '%%'.
+            const string placeholder = "\x01PCT\x01";
+            string temp = path.Replace("%", placeholder);
+            temp = ffmpegSequencePatternRegex.Replace(temp, m => m.Value.Replace(placeholder, "%"));
+            return temp.Replace(placeholder, "%%");
         }
 
         /// <summary>

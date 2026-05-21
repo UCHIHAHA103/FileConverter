@@ -422,7 +422,16 @@ namespace FileConverter.ConversionJobs
                         string encoderArgs = string.Join(" ", new[] { "-pix_fmt rgba", "-compression_level 6", vfArg, muxerArg }
                             .Where(s => !string.IsNullOrEmpty(s)));
 
-                        string arguments = $"{baseArgs} -i \"{this.InputFilePath}\" {encoderArgs} \"{this.OutputFilePath}\"";
+                        // For sequence output, literal '%' characters in the path (e.g. from
+                        // filenames like "100%保留原图") must be escaped to '%%' so that ffmpeg's
+                        // image2 muxer does not misinterpret them as printf format specifiers,
+                        // which would cause "Invalid argument" (EINVAL). The intentional
+                        // sequence pattern (%06d) is preserved by EscapePercentForFfmpeg.
+                        string outputPathForFfmpeg = isSequenceOutput
+                            ? PathHelpers.EscapePercentForFfmpeg(this.OutputFilePath)
+                            : this.OutputFilePath;
+
+                        string arguments = $"{baseArgs} -i \"{this.InputFilePath}\" {encoderArgs} \"{outputPathForFfmpeg}\"";
 
                         this.ffmpegArgumentStringByPass.Add(new FFMpegPass(arguments));
                     }
