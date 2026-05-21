@@ -68,6 +68,16 @@
             Directory="INSTALLFOLDER"
             ExeCommand="&quot;[INSTALLFOLDER]FileConverter.exe&quot; --post-install-init" />
 
+        <!-- UninstallShell: unregister the shell extension BEFORE RemoveFiles so that
+             explorer.exe releases the DLL handle. Without this, MajorUpgrade's RemoveFiles
+             phase waits indefinitely for the locked DLL, causing the installer to appear
+             stuck on "Validating install" for minutes.
+             Return="ignore" so a missing/old exe doesn't block the uninstall. -->
+        <CustomAction Id="UninstallShell"
+            Execute="immediate" Return="ignore"
+            Directory="INSTALLFOLDER"
+            ExeCommand="&quot;[INSTALLFOLDER]FileConverter.exe&quot; --unregister-shell-extension &quot;[INSTALLFOLDER]FileConverterExtension.dll&quot;" />
+
         <CustomAction Id="DeleteUserSettings"
             Execute="immediate" Return="ignore"
             Directory="INSTALLFOLDER"
@@ -86,6 +96,12 @@
                 Condition="NOT (REMOVE~=&quot;ALL&quot;)" />
             <Custom Action="PostInstallInit" After="RegisterShell"
                 Condition="NOT Installed AND NOT (REMOVE~=&quot;ALL&quot;)" />
+
+            <!-- Uninstall / upgrade: unregister shell extension BEFORE RemoveFiles so that
+                 explorer releases the DLL lock. Runs for both full uninstall and MajorUpgrade
+                 (UPGRADINGPRODUCTCODE is set when a newer version is installing over this one). -->
+            <Custom Action="UninstallShell" Before="RemoveFiles"
+                Condition="(REMOVE~=&quot;ALL&quot;) OR UPGRADINGPRODUCTCODE" />
 
             <!-- Uninstall: user data cleanup only (HKCR cleaned by ForceDeleteOnUninstall) -->
             <Custom Action="DeleteUserSettings" After="InstallFinalize"
