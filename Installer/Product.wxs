@@ -78,14 +78,19 @@
             Directory="INSTALLFOLDER"
             ExeCommand="&quot;[INSTALLFOLDER]FileConverter.exe&quot; --unregister-shell-extension &quot;[INSTALLFOLDER]FileConverterExtension.dll&quot;" />
 
-        <!-- KillFC: force-terminate FileConverter.exe before InstallValidate.
-             util:CloseApplications is a deferred CA and cannot run before InstallValidate
-             (MSI constraint). taskkill with Execute="immediate" has no such restriction.
+        <!-- KillFC: force-terminate running FileConverter.exe before InstallValidate so
+             Windows Installer's file-in-use check doesn't see the process and pop "Files
+             in Use" dialog. We use WixQuietExec64 (a WiX util DLL CA) instead of calling
+             taskkill.exe directly via ExeCommand, because the latter briefly flashes a
+             cmd black window. WixQuietExec64 runs the command with hidden window (CREATE_NO_WINDOW).
              Return="ignore" so a missing/already-closed process doesn't fail the install. -->
+        <SetProperty Id="WixQuietExec64CmdLine"
+            Value="&quot;[System64Folder]taskkill.exe&quot; /F /IM FileConverter.exe"
+            Before="KillFC" Sequence="execute" />
         <CustomAction Id="KillFC"
-            Execute="immediate" Return="ignore"
-            Directory="SystemFolder"
-            ExeCommand="taskkill.exe /F /IM FileConverter.exe" />
+            BinaryRef="Wix4UtilCA_X64"
+            DllEntry="WixQuietExec64"
+            Execute="immediate" Return="ignore" />
 
         <CustomAction Id="DeleteUserSettings"
             Execute="immediate" Return="ignore"
@@ -104,8 +109,10 @@
                  file-in-use check doesn't see the process and pop "Files in Use" dialog.
                  util:CloseApplications (deferred CA) cannot run before InstallValidate
                  due to MSI constraints, so we use taskkill with Execute="immediate".
-                 Return="ignore" so a missing process (already closed) doesn't fail the install. -->
-            <Custom Action="KillFC" Before="InstallValidate" />
+                 Condition: only run when upgrading or uninstalling — first-time install
+                 has no running process to kill, skipping saves ~1 second. -->
+            <Custom Action="KillFC" Before="InstallValidate"
+                Condition="Installed OR UPGRADINGPRODUCTCODE OR (REMOVE~=&quot;ALL&quot;)" />
 
             <!-- Install: register shell ext + init presets (after files are on disk) -->
             <Custom Action="RegisterShell" After="InstallFinalize"
