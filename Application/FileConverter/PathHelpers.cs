@@ -214,48 +214,12 @@ namespace FileConverter
 
             outputPath += "." + outputExtension;
 
-            // ── Windows path-segment sanitization ─────────────────────────
             // Windows file system silently strips trailing dots and spaces from
-            // directory names (legacy DOS/FAT compatibility). This breaks any
-            // template that uses (f), (d0), (d:format), etc. as a *directory*
-            // segment when the source value happens to end with '.' or ' '.
-            //
-            // We trim only INTERMEDIATE directory segments (everything between
-            // backslashes). The final segment (file name) is left untouched so
-            // the ".extension" we just appended is preserved and any user-chosen
-            // file naming is respected.
+            // directory names. Trim all intermediate directory segments so the
+            // in-memory path matches what Windows actually creates on disk.
             outputPath = SanitizeIntermediateDirSegments(outputPath);
 
             return outputPath;
-        }
-
-        // Regex that matches an intentional ffmpeg sequence pattern like %06d / %04d / %d.
-        private static readonly Regex ffmpegSequencePatternRegex =
-            new Regex(@"%0?\d*d", RegexOptions.Compiled);
-
-        /// <summary>
-        /// Escape literal '%' characters in a file path to '%%' so that ffmpeg's
-        /// image2 muxer does not misinterpret them as printf format specifiers.
-        /// Intentional ffmpeg sequence patterns (%06d, %04d, %d) are preserved as-is.
-        ///
-        /// Call this only for sequence output paths (where the path already contains
-        /// a %NNd pattern). For non-sequence outputs the path is passed to ffmpeg
-        /// without modification and '%%' would corrupt the actual filename.
-        /// </summary>
-        public static string EscapePercentForFfmpeg(string path)
-        {
-            if (string.IsNullOrEmpty(path) || !path.Contains("%"))
-            {
-                return path;
-            }
-
-            // Replace all '%' with a placeholder that cannot appear in a Windows
-            // path, then restore the intentional sequence patterns, then replace
-            // remaining placeholders with '%%'.
-            const string placeholder = "\x01PCT\x01";
-            string temp = path.Replace("%", placeholder);
-            temp = ffmpegSequencePatternRegex.Replace(temp, m => m.Value.Replace(placeholder, "%"));
-            return temp.Replace(placeholder, "%%");
         }
 
         /// <summary>
@@ -272,21 +236,18 @@ namespace FileConverter
                 return path;
             }
 
-            // Split into segments. Path can start with "X:\" or "\\server\share\".
             int lastSep = path.LastIndexOf('\\');
             if (lastSep < 0)
             {
                 return path;
             }
 
-            string dirPart  = path.Substring(0, lastSep);   // everything up to and excluding the last '\'
-            string filePart = path.Substring(lastSep);      // includes the leading '\' + filename
+            string dirPart  = path.Substring(0, lastSep);
+            string filePart = path.Substring(lastSep);
 
             string[] segments = dirPart.Split('\\');
             for (int i = 0; i < segments.Length; i++)
             {
-                // Skip the drive letter ("X:") and empty segments produced by
-                // UNC prefixes ("\\server\share\..." -> ["", "", "server", "share", ...]).
                 if (i == 0 && segments[i].Length == 2 && segments[i][1] == ':')
                 {
                     continue;
