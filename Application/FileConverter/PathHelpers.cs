@@ -262,6 +262,28 @@ namespace FileConverter
                 segments[i] = segments[i].Replace("%", string.Empty);
             }
 
+            // Also strip '%' from the filename segment so ffmpeg's image2 muxer
+            // does not misinterpret them as printf format specifiers (e.g. '%保'
+            // from '100%保留' causes EINVAL). The intentional sequence pattern
+            // (%06d / %04d / %d) must be preserved.
+            if (filePart.Contains("%"))
+            {
+                // Protect sequence patterns by replacing with a placeholder.
+                var seqMatches = new System.Collections.Generic.List<string>();
+                filePart = System.Text.RegularExpressions.Regex.Replace(
+                    filePart, @"%0?\d*d",
+                    m => { seqMatches.Add(m.Value); return "\x01SEQ" + (seqMatches.Count - 1) + "\x01"; });
+
+                // Strip remaining literal '%'.
+                filePart = filePart.Replace("%", string.Empty);
+
+                // Restore sequence patterns.
+                for (int i = 0; i < seqMatches.Count; i++)
+                {
+                    filePart = filePart.Replace("\x01SEQ" + i + "\x01", seqMatches[i]);
+                }
+            }
+
             return string.Join("\\", segments) + filePart;
         }
 
