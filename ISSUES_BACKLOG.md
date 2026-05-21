@@ -3,8 +3,10 @@
 > **数据来源**：原作者仓库 [Tichau/FileConverter](https://github.com/Tichau/FileConverter) 的 Issues 与 Pull Requests  
 > **抓取范围**：Issues 前 10 页（≈ 130 条 Open） + 全部 7 个 Open PR + 关键已关闭 PR  
 > **抓取时间**：2026-04-26  
+> **社区 fork 参考**：[Th3Nekit/FileConverter](https://github.com/Th3Nekit/FileConverter)（2.3 CustomVer，2026-05-09）  
 > **维护仓库**：[UCHIHAHA103/FileConverter](https://github.com/UCHIHAHA103/FileConverter)（fork）  
-> **文档用途**：本 fork 的修复路线图，按优先级推进
+> **文档用途**：本 fork 的修复路线图，按优先级推进  
+> **最后更新**：2026-05-21（v2.2.11 发布后，同步 Th3Nekit 2.3 CustomVer 差异分析）
 
 ---
 
@@ -17,6 +19,8 @@
 6. [安装器 / 更新器 / 右键菜单问题](#六-安装器--更新器--右键菜单问题)
 7. [建议的修复迭代顺序](#七-建议的修复迭代顺序)
 8. [开发约定](#八-开发约定)
+9. [Th3Nekit 2.3 CustomVer 差异分析](#九-th3nekit-23-customver-差异分析)
+10. [当前版本进度（v2.2.11）](#十-当前版本进度v2211)
 
 ---
 
@@ -474,7 +478,7 @@ Removed from Shell Extensions\Blocked.
 
 ## 七、建议的修复迭代顺序
 
-### 🚀 Sprint 1：发布 **v2.2.8 hotfix**（进行中）
+### 🚀 Sprint 1：发布 **v2.2.8 hotfix**（✅ 已完成）
 
 > 目标：合并他人已写好的 PR，快速解决 v2.2 回归与更新崩溃
 
@@ -483,7 +487,7 @@ Removed from Shell Extensions\Blocked.
 3. ✅ ~~**T-U**：更新 `version.xml` 中的 URL 指向 fork releases~~（已完成）
 4. ✅ ~~**T-U2**：UpgradeService.BaseURI 指向 fork 仓库~~（原指向 Tichau/FileConverter）
 5. ✅ ~~**T-P2 ~ T-P4**：补充 ffmpeg 优雅终止 + 进程清理~~（已在 v2.2.7 中完成）
-6. - [ ] 发布 **v2.2.8**
+6. ✅ 已发布 **v2.2.8**
 
 ### 🚀 Sprint 2：~~发布 **2.3.0 "Settings Fix"**~~（✅ 已完成）
 
@@ -492,9 +496,9 @@ Removed from Shell Extensions\Blocked.
 1. ✅ ~~**T-L1 ~ T-L5**：语言设置不生效根治~~（已在 fork 中修复）
 2. ✅ ~~**T-S1 ~ T-S4**：设置窗口打不开 / 不保存 / CRF 不生效~~（已在 fork 中修复）
 3. ✅ ~~**合并 PR #698 / #712 / #707**：翻译补全~~（已合入 + 修复 #712 XML 标签 bug）
-4. - [ ] 发布版本
+4. ✅ 已发布版本
 
-### 🚀 Sprint 3：发布 **2.3.1 "Format Fixes"**（大部分已完成）
+### 🚀 Sprint 3：发布 **2.3.1 "Format Fixes"**（✅ 已完成）
 
 > 目标：格式转换 bug 批量修复
 
@@ -503,7 +507,7 @@ Removed from Shell Extensions\Blocked.
 3. ✅ ~~**T-F3**：DOCX 转换友好提示~~（已有 `ErrorMicrosoftWordIsNotAvailable` 等提示）
 4. ✅ ~~**合并 PR #702**：GPU 自动回退软编~~（已实现 TrySoftwareFallback）
 5. ✅ ~~**合并 PR #562**：ALAC 支持~~（已手动实现，OutputType.Alac + .m4a 输出）
-6. - [ ] 发布版本
+6. ✅ 已发布版本
 
 ### 🚀 Sprint 4：发布 **2.4.0 "Enhancement"**（进行中）
 
@@ -514,7 +518,26 @@ Removed from Shell Extensions\Blocked.
 3. ✅ ~~Queue 管理（#701 / #429）~~（ConversionService.RemoveConversionJob 已实现）
 4. ✅ ~~进度条（#384）~~（ParseFFMPEGOutput 解析 time= 计算进度，UI ProgressBar 已绑定）
 
-### 🚀 Sprint 5+：按需实现高票功能请求
+### 🚀 Sprint 5：发布 **v2.2.11 "Path Fix + Installer Fix"**（✅ 2026-05-21 发布）
+
+> 目标：修复含特殊字符文件名导致的转换失败，修复 MSI 升级文件替换问题
+
+1. ✅ **路径特殊字符处理**：`PathHelpers.SanitizeIntermediateDirSegments`，对中间目录段和文件名段统一剔除 `.`（末尾）、空格（末尾）、`%`（全部），适配 Windows 文件系统限制和 ffmpeg image2 muxer 限制
+2. ✅ **MSI 升级文件替换修复**：`AssemblyFileVersion` 随 CI build number 动态更新（`2.2.{run_number}.0`），MSI 通过文件版本比较正确识别需要替换的文件
+3. ✅ **MajorUpgrade 调度优化**：改为 `afterInstallFinalize`，消除"Validating install"卡顿
+4. ✅ **安装诊断日志**：`%TEMP%\FC_install.log` 记录每个 CA 耗时
+5. ✅ **UI 汉化**：打开、定位、索引颜色、转换
+6. ✅ 已发布 [v2.2.11](https://github.com/UCHIHAHA103/FileConverter/releases/tag/v2.2.11)
+
+### 🚀 Sprint 6：发布 **v2.2.12**（待规划）
+
+> 参考 Th3Nekit 2.3 CustomVer 中我们尚未合入的改动（详见第九章）
+
+- [ ] **Word COM 稳定性**：重试 COM RPC_E_BUSY/CALL_REJECTED 错误，STA 线程公寓，更可靠关闭 Word 实例
+- [ ] **FFmpeg 进度解析增强**：支持 `out_time`、`out_time_ms`、`out_time_us` 字段
+- [ ] **缺失 NetOffice DLL 补全**（`NetOffice.dll`、`OfficeApi.dll`、`WordApi.dll` 等）
+
+### 🚀 Sprint 7+：按需实现高票功能请求
 
 - 高票格式：~~H.265 预设（#386）~~✅、HEIC→JPEG（#369）、Opus（#687）
 - PowerToys 集成（#671）、Pandoc 集成（#669）
@@ -640,4 +663,128 @@ Removed from Shell Extensions\Blocked.
 
 ---
 
-_最后更新：2026-05-01（第二次更新）_
+_最后更新：2026-05-21（v2.2.11 发布 + Th3Nekit 2.3 CustomVer 差异同步）_
+
+---
+
+## 九、Th3Nekit 2.3 CustomVer 差异分析
+
+> **参考来源**：https://github.com/Th3Nekit/FileConverter  
+> **社区版本**：v2.3 CustomVer（2026-05-09 发布）  
+> **分析目的**：找出社区做了但我们还没做的改动，避免重复踩坑
+
+### 9.1 改动对比总表
+
+| 改动 | Th3Nekit 状态 | 我们（UCHIHAHA103）状态 | 备注 |
+|---|---|---|---|
+| FFmpeg stdout pipe 死锁修复（PR #732） | ✅ 已合入 | ✅ v2.2.7 已完成 | 完全一致 |
+| FFmpeg 异步排空 stdout/stderr | ✅ 已实现 | ✅ `RedirectStandardOutput=false` | 完全一致 |
+| FFmpeg 进度解析支持 `out_time` 系列字段 | ✅ 已实现 | ❌ **未做** | 见 §9.2 |
+| 避免 CUDA decode + `scale_cuda` 路径 | ✅ 已实现 | ✅ GPU 失败自动回退软编 | 等效实现 |
+| Word COM 重试 RPC_E_BUSY/CALL_REJECTED | ✅ 已实现 | ❌ **未做** | 见 §9.3 |
+| 更可靠关闭/释放 Word 实例 | ✅ 已实现 | ❌ **未做** | 见 §9.3 |
+| 转换队列/作业线程改为 STA 公寓状态 | ✅ 已实现 | ❌ **未做** | 见 §9.3 |
+| 补全 NetOffice 相关 DLL | ✅ 已添加 | ❌ **未核查** | 见 §9.4 |
+
+### 9.2 ❌ FFmpeg 进度解析增强（待实现）
+
+**问题**：当前 `ParseFFMPEGOutput` 只解析 `time=HH:MM:SS.xx` 格式的行（stderr 的旧进度格式）。ffmpeg 新版本的 `-progress` 输出用的是 `out_time=HH:MM:SS.xx`、`out_time_ms=微秒数`、`out_time_us=微秒数`。
+
+**影响**：长转换任务进度条不更新（显示 0%），用户误以为卡死。
+
+**修复位置**：`ConversionJob_FFMPEG.cs` → `ParseFFMPEGOutput()`
+
+**参考实现**：
+```csharp
+// 当前仅解析 "time=HH:MM:SS.xx"
+// 需要新增：
+if (line.StartsWith("out_time=") || line.StartsWith("out_time_us="))
+    // 解析并更新 this.Progress
+```
+
+**相关 Issues**：#700（进度出现后冻结）、#716、#739
+
+### 9.3 ❌ Word COM 稳定性修复（待实现）
+
+**问题**：多个 Issue（#745 #728 #717 #714 #705 #631）报告 DOCX→PDF 转换崩溃或卡死。根本原因是 Word/Excel COM 对象调用在 MTA 线程中执行，且未处理 COM 服务器繁忙时的 `RPC_E_CALL_REJECTED`（HRESULT 0x80010001）错误。
+
+**Th3Nekit 的三个修复**：
+
+1. **COM 繁忙重试**：捕获 `COMException(0x80010001)` 和 `COMException(0x8001010A)`（RPC_E_CALL_REJECTED / RPC_E_SERVERCALL_RETRYLATER），等待后重试最多 N 次。
+
+2. **Word 实例可靠关闭**：
+   ```csharp
+   // 确保即使转换失败也关闭 Word
+   try { document?.Close(false); } catch {}
+   try { if (wordApplicationOpenedByUs) wordApplication?.Quit(); } catch {}
+   Marshal.ReleaseComObject(document);
+   Marshal.ReleaseComObject(wordApplication);
+   GC.Collect(); GC.WaitForPendingFinalizers();
+   ```
+
+3. **线程 STA 公寓**：Office COM 要求 STA（Single-Threaded Apartment）。当前转换线程是 MTA，容易导致 COM 调用失败。
+   ```csharp
+   var thread = new Thread(() => { /* Word 转换逻辑 */ });
+   thread.SetApartmentState(ApartmentState.STA);
+   thread.Start();
+   thread.Join();
+   ```
+
+**修复位置**：`ConversionJob_Word.cs`、`ConversionJob_Excel.cs`、`ConversionJob_PowerPoint.cs`
+
+**优先级**：P1（DOCX 相关 Issue 数量多，且社区已验证可行）
+
+### 9.4 ❌ NetOffice DLL 缺失核查（待核查）
+
+Th3Nekit 添加了以下 DLL：`NetOffice.dll`、`OfficeApi.dll`、`WordApi.dll`、`ExcelApi.dll`、`PowerPointApi.dll`、`VBIDEApi.dll`
+
+需核查我们的安装包是否包含这些 DLL。**操作**：检查 `Installer/Product.wxs` 的 `ProductComponents` 和 `Application/FileConverter/bin/x64/Release/` 目录。
+
+---
+
+## 十、当前版本进度（v2.2.11）
+
+> **发布时间**：2026-05-21  
+> **Release 链接**：https://github.com/UCHIHAHA103/FileConverter/releases/tag/v2.2.11
+
+### 10.1 本版本新增内容
+
+| 类别 | 内容 |
+|---|---|
+| Bug 修复 | 含特殊字符（`.` 末尾、`%`）的文件名作为子目录时，路径与 Windows 实际目录不一致导致转换失败 |
+| Bug 修复 | MSI 升级时 EXE 不被替换（EXE `FileVersion` 现随 CI build number 动态更新） |
+| 安装优化 | MajorUpgrade 改为 `afterInstallFinalize`，消除"Validating install"卡顿 |
+| 安装诊断 | 新增 `%TEMP%\FC_install.log` 记录安装各步骤耗时 |
+| UI | 界面文字汉化（打开/定位/索引颜色/转换） |
+
+### 10.2 已完成的 Issue/PR 汇总（截至 v2.2.11）
+
+**已修复的社区 Issue（~60+ 个）**：
+- FFmpeg 卡死系列：#749 #740 #739 #716 #703 #700 #711
+- 格式转换失败：#748 #715 #713 #709 #678 #677 #676 #643 #561 #560 #568 #452
+- 右键菜单：#692 #685 #675 #645 #633 #604 #566 #516 #642
+- 语言/设置：#750 #735 #692 #690 #673 #667 #646 #609 #606 #593 #741 #682 #600 #570 #363 #435 #529 #274
+- 安装器：#721 #526 #450 #396
+- 功能性 Bug：#674 #605 #599 #270 #431 #455 #510 #258 #54
+
+**已实现的功能请求**：
+- #437 ALAC 音频输出
+- #386 H.265/HEVC 预设
+- #519 CLI 扩展（--output-dir / --wait / --progress / --list-presets / --probe）
+- #518 拖拽区域
+- #384 转换进度条
+- #704 多文件夹递归处理
+- #701 追加任务到已有队列
+- #429 从队列移除单项
+- #361 关窗确认对话框
+
+### 10.3 已知未修复（待下次迭代）
+
+| 优先级 | 内容 | 参考 |
+|---|---|---|
+| P1 | Word COM 稳定性（重试/STA/可靠关闭） | §9.3，Issues #745 #728 #717 #714 |
+| P1 | FFmpeg 进度解析增强（`out_time` 字段） | §9.2 |
+| P2 | NetOffice DLL 缺失核查 | §9.4 |
+| P2 | Watch Folder 监视自动转换 | #519 #613 |
+| P3 | HEIC → JPEG/PNG | #369 |
+| P3 | Opus 格式预设 | #687 |
